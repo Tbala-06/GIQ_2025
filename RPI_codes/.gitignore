@@ -45,3 +45,4 @@ Thumbs.db
 
 # Test data
 test_data/
+GeoJson/road_markings.geojson
