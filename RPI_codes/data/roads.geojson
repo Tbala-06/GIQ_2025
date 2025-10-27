@@ -1,0 +1,69 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "center": [37.7749, -122.4194],
+    "radius_meters": 500,
+    "road_count": 3,
+    "description": "Sample road data for testing"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-122.4194, 37.7749],
+          [-122.4184, 37.7759],
+          [-122.4174, 37.7769],
+          [-122.4164, 37.7779]
+        ]
+      },
+      "properties": {
+        "osm_id": 1001,
+        "name": "Main Street",
+        "highway": "primary",
+        "surface": "asphalt",
+        "lanes": "2",
+        "oneway": "no"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-122.4204, 37.7739],
+          [-122.4194, 37.7749],
+          [-122.4184, 37.7759]
+        ]
+      },
+      "properties": {
+        "osm_id": 1002,
+        "name": "Oak Avenue",
+        "highway": "secondary",
+        "surface": "asphalt",
+        "lanes": "2",
+        "oneway": "no"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-122.4214, 37.7749],
+          [-122.4194, 37.7749],
+          [-122.4174, 37.7749]
+        ]
+      },
+      "properties": {
+        "osm_id": 1003,
+        "name": "Elm Street",
+        "highway": "residential",
+        "surface": "asphalt",
+        "lanes": "1",
+        "oneway": "no"
+      }
+    }
+  ]
+}

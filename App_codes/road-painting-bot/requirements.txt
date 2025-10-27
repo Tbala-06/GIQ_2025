@@ -1,0 +1,22 @@
+# Telegram Bot Framework
+python-telegram-bot[all]==21.0.1
+
+# Environment Variables
+python-dotenv==1.0.1
+
+# Database (SQLite is built-in, but we can add SQLAlchemy for advanced features)
+# sqlalchemy==2.0.25  # Uncomment if you want to use SQLAlchemy instead of sqlite3
+
+# Utilities
+# For future web dashboard or API
+# flask==3.0.2
+# fastapi==0.109.2
+# uvicorn==0.27.1
+
+# For enhanced features
+# pandas==2.2.0  # For advanced CSV export features
+# geopy==2.4.1  # For distance calculations
+
+# Testing (optional)
+# pytest==8.0.0
+# pytest-asyncio==0.23.4

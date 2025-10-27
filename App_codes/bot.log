@@ -1,0 +1,19 @@
+2025-10-27 09:38:02 - __main__ - INFO - ============================================================
+2025-10-27 09:38:02 - __main__ - INFO - Starting Road Painting Robot Bot
+2025-10-27 09:38:02 - __main__ - INFO - ============================================================
+2025-10-27 09:38:02 - __main__ - INFO - Configuration validated successfully
+2025-10-27 09:38:03 - database - INFO - Database initialized successfully
+2025-10-27 09:38:03 - __main__ - INFO - Database initialized successfully
+2025-10-27 09:38:04 - __main__ - INFO - Registering handlers...
+2025-10-27 09:38:04 - __main__ - INFO - All handlers registered successfully
+2025-10-27 09:38:04 - __main__ - INFO - Authorized inspectors: [6145016171]
+2025-10-27 09:38:04 - __main__ - INFO - Starting bot with polling...
+2025-10-27 09:38:04 - __main__ - INFO - Bot is now running. Press Ctrl+C to stop.
+2025-10-27 09:38:04 - __main__ - INFO - ============================================================
+2025-10-27 09:38:09 - apscheduler.scheduler - INFO - Scheduler started
+2025-10-27 09:38:20 - handlers.user_handlers - INFO - User 6145016171 (Bal123l) started the bot
+2025-10-27 09:38:30 - handlers.inspector_handlers - INFO - Inspector 6145016171 accessed dashboard
+2025-10-27 09:38:48 - handlers.user_handlers - INFO - User 6145016171 started report submission
+2025-10-27 09:39:04 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2025-10-27 09:39:04 - __main__ - INFO - Bot stopped
+2025-10-27 09:39:04 - __main__ - INFO - ============================================================

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  road-painting-bot:
+    build: .
+    container_name: road-painting-bot
+    restart: unless-stopped
+
+    # Environment variables (override with your .env file)
+    env_file:
+      - .env
+
+    # Volumes for persistent data
+    volumes:
+      - ./data:/app/data
+      - ./exports:/app/exports
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Web Dashboard
+  web-dashboard:
+    build: .
+    container_name: road-painting-dashboard
+    restart: unless-stopped
+    command: python web_dashboard.py
+
+    env_file:
+      - .env
+
+    ports:
+      - "5000:5000"
+
+    volumes:
+      - ./data:/app/data
+      - ./exports:/app/exports
+
+    depends_on:
+      - road-painting-bot
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
