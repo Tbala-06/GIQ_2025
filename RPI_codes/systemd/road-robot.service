@@ -1,0 +1,36 @@
+[Unit]
+Description=Road Painting Robot Controller
+Documentation=https://github.com/yourorg/road-robot
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/GIQ_2025/RPI_codes
+Environment="PATH=/home/pi/GIQ_2025/RPI_codes/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/pi/GIQ_2025/RPI_codes/venv/bin/python main.py
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+StartLimitInterval=5min
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=road-robot
+
+# Security and resource limits
+# Allows GPIO access
+SupplementaryGroups=gpio dialout
+
+# Allow GPIO and serial port access
+# Comment out these lines if you have permission issues
+#NoNewPrivileges=true
+#PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
