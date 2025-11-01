@@ -46,3 +46,6 @@ Thumbs.db
 # Test data
 test_data/
 GeoJson/road_markings.geojson
+
+# Camera test data archives
+cam/datas_archive/

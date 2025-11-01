@@ -76,18 +76,14 @@ class SimpleYellowAlignmentDetector:
         Detect which zone contains yellow pixels
         Returns: (zone_name, offset_px, offset_percentage)
         """
-        x, y, w, h = stencil_bbox
+        # IGNORE stencil_bbox - use bottom half of image instead
+        img_height, img_width = image.shape[:2]
         
-        # Extract the stencil area WITH PADDING to avoid stencil edges
-        # Remove outer 10% from each side to ignore stencil frame itself
-        pad_x = int(w * 0.10)
-        pad_y = int(h * 0.10)
-        
-        # Adjusted ROI (inner area only)
-        roi_x = x + pad_x
-        roi_y = y + pad_y
-        roi_w = w - (2 * pad_x)
-        roi_h = h - (2 * pad_y)
+        # ROI = bottom half of image, full width
+        roi_x = 0
+        roi_y = img_height // 2  # Start from middle
+        roi_w = img_width
+        roi_h = img_height // 2  # Bottom half
         
         roi = image[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w].copy()
         
@@ -226,23 +222,21 @@ class SimpleYellowAlignmentDetector:
         if self.debug:
             # Draw stencil
             cv2.rectangle(debug_img, (x, y), (x+w, y+h), (0, 255, 0), 3)
-            cv2.putText(debug_img, "RED STENCIL", (x, y-10), 
+            cv2.putText(debug_img, "RED STENCIL", (x, y-10),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            
-            # Draw padded search area (inner region where we actually look)
-            pad_x = int(w * 0.10)
-            pad_y = int(h * 0.10)
-            search_x = x + pad_x
-            search_y = y + pad_y
-            search_w = w - (2 * pad_x)
-            search_h = h - (2 * pad_y)
-            
-            cv2.rectangle(debug_img, (search_x, search_y), 
-                         (search_x + search_w, search_y + search_h), 
-                         (255, 0, 255), 2)
-            cv2.putText(debug_img, "SEARCH AREA", (search_x + 5, search_y + 20), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 255), 1)
-            
+
+            # Draw ACTUAL search area - bottom half of entire frame
+            search_x = 0
+            search_y = height // 2  # Start from middle of frame
+            search_w = width
+            search_h = height // 2  # Bottom half height
+
+            cv2.rectangle(debug_img, (search_x, search_y),
+                         (search_x + search_w, search_y + search_h),
+                         (255, 0, 255), 3)
+            cv2.putText(debug_img, "SEARCH AREA (BOTTOM HALF)", (search_x + 5, search_y + 25),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
+
             # Draw zone boundaries (cyan vertical lines) - in the search area
             left_boundary = int(search_x + search_w * 0.33)
             right_boundary = int(search_x + search_w * 0.67)

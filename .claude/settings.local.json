@@ -3,7 +3,8 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(python -m py_compile:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(git check-ignore:*)"
     ],
     "deny": [],
     "ask": []

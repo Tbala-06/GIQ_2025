@@ -58,9 +58,33 @@ class Database:
                     inspector_username TEXT,
                     decision_timestamp DATETIME,
                     rejection_reason TEXT,
-                    notes TEXT
+                    notes TEXT,
+                    road_type TEXT,
+                    road_confidence TEXT,
+                    road_details TEXT,
+                    road_features TEXT
                 )
             ''')
+
+            # Add new columns to existing tables (migration)
+            cursor.execute("PRAGMA table_info(submissions)")
+            columns = [column[1] for column in cursor.fetchall()]
+
+            if 'road_type' not in columns:
+                cursor.execute('ALTER TABLE submissions ADD COLUMN road_type TEXT')
+                logger.info("Added road_type column to submissions table")
+
+            if 'road_confidence' not in columns:
+                cursor.execute('ALTER TABLE submissions ADD COLUMN road_confidence TEXT')
+                logger.info("Added road_confidence column to submissions table")
+
+            if 'road_details' not in columns:
+                cursor.execute('ALTER TABLE submissions ADD COLUMN road_details TEXT')
+                logger.info("Added road_details column to submissions table")
+
+            if 'road_features' not in columns:
+                cursor.execute('ALTER TABLE submissions ADD COLUMN road_features TEXT')
+                logger.info("Added road_features column to submissions table")
 
             # Create indexes for better query performance
             cursor.execute('''
@@ -82,20 +106,24 @@ class Database:
 
     def create_submission(self, user_id: int, username: str, first_name: str,
                          last_name: str, photo_id: str, latitude: float,
-                         longitude: float) -> int:
+                         longitude: float, road_type: str = None,
+                         road_confidence: str = None, road_details: str = None,
+                         road_features: str = None) -> int:
         """Create a new submission"""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO submissions
                 (user_id, username, first_name, last_name, photo_id,
-                 latitude, longitude, timestamp, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                 latitude, longitude, timestamp, status,
+                 road_type, road_confidence, road_details, road_features)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
             ''', (user_id, username, first_name, last_name, photo_id,
-                  latitude, longitude, datetime.now()))
+                  latitude, longitude, datetime.now(),
+                  road_type, road_confidence, road_details, road_features))
 
             submission_id = cursor.lastrowid
-            logger.info(f"Created submission #{submission_id} for user {user_id}")
+            logger.info(f"Created submission #{submission_id} for user {user_id} (road: {road_type})")
             return submission_id
 
     def get_submission(self, submission_id: int) -> Optional[Dict]:

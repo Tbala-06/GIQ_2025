@@ -4,6 +4,10 @@ python-telegram-bot[all]==21.0.1
 # Environment Variables
 python-dotenv==1.0.1
 
+# Image Processing for Road Analysis
+opencv-python==4.9.0.80
+numpy==1.26.4
+
 # Database (SQLite is built-in, but we can add SQLAlchemy for advanced features)
 # sqlalchemy==2.0.25  # Uncomment if you want to use SQLAlchemy instead of sqlite3
 

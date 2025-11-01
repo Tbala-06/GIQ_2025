@@ -4,6 +4,8 @@ Handles user commands and report submission flow
 """
 
 import logging
+import os
+import tempfile
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton
 from telegram.ext import (
     ContextTypes,
@@ -14,6 +16,7 @@ from telegram.ext import (
 )
 from database import get_db
 from datetime import datetime
+from road_analyzer import analyze_road_photo
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +86,56 @@ async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['photo_id'] = photo.file_id
     context.user_data['photo_size'] = photo.file_size
 
+    # Send processing message
+    processing_msg = await update.message.reply_text(
+        "✅ Photo received!\n\n"
+        "🔍 Analyzing road markings, please wait..."
+    )
+
+    # Download and analyze the photo
+    road_type = "Unknown"
+    road_details = ""
+    try:
+        # Download photo to temporary file
+        file = await context.bot.get_file(photo.file_id)
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+            temp_path = tmp_file.name
+            await file.download_to_drive(temp_path)
+
+        # Analyze road markings
+        logger.info(f"Analyzing road image: {temp_path}")
+        analysis = await analyze_road_photo(temp_path)
+
+        # Store analysis results
+        context.user_data['road_type'] = analysis.road_type
+        context.user_data['road_confidence'] = analysis.confidence
+        context.user_data['road_details'] = analysis.details
+        context.user_data['road_features'] = ", ".join(analysis.detected_features)
+
+        road_type = analysis.road_type
+        road_details = analysis.details
+
+        # Clean up temp file
+        try:
+            os.unlink(temp_path)
+        except:
+            pass
+
+        logger.info(f"Road analysis complete: {road_type} ({analysis.confidence})")
+
+    except Exception as e:
+        logger.error(f"Error analyzing photo: {e}", exc_info=True)
+        context.user_data['road_type'] = "Analysis Error"
+        context.user_data['road_confidence'] = "N/A"
+        context.user_data['road_details'] = "Could not analyze image"
+        context.user_data['road_features'] = "none"
+
+    # Delete processing message
+    try:
+        await processing_msg.delete()
+    except:
+        pass
+
     # Create keyboard with location button
     location_keyboard = ReplyKeyboardMarkup(
         [[KeyboardButton("📍 Share Location", request_location=True)]],
@@ -90,13 +143,26 @@ async def receive_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         resize_keyboard=True
     )
 
+    # Send result with location request
+    analysis_emoji = {
+        "HIGH": "✅",
+        "MEDIUM": "⚠️",
+        "LOW": "❓",
+        "N/A": "❌"
+    }.get(context.user_data.get('road_confidence', 'N/A'), '❓')
+
     await update.message.reply_text(
-        "✅ Photo received!\n\n"
-        "📍 Now, please share the location of the damaged road.\n\n"
-        "You can tap the button below to share your current location, "
-        "or manually send a location from Telegram's location picker.\n\n"
-        "Type /cancel to cancel this report.",
-        reply_markup=location_keyboard
+        f"✅ Photo received and analyzed!\n\n"
+        f"🛣️ **Detected Road Type:**\n"
+        f"{analysis_emoji} {road_type}\n"
+        f"📊 Confidence: {context.user_data.get('road_confidence', 'N/A')}\n"
+        f"📝 {road_details}\n\n"
+        f"📍 Now, please share the location of this road.\n\n"
+        f"You can tap the button below to share your current location, "
+        f"or manually send a location from Telegram's location picker.\n\n"
+        f"Type /cancel to cancel this report.",
+        reply_markup=location_keyboard,
+        parse_mode='Markdown'
     )
 
     logger.info(f"User {user.id} uploaded photo (file_id: {photo.file_id})")
@@ -113,19 +179,36 @@ async def receive_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['longitude'] = location.longitude
 
     # Show confirmation with all details
+    road_type = context.user_data.get('road_type', 'Unknown')
+    road_confidence = context.user_data.get('road_confidence', 'N/A')
+    road_details = context.user_data.get('road_details', 'No analysis available')
+
+    # Confidence emoji
+    confidence_emoji = {
+        "HIGH": "✅",
+        "MEDIUM": "⚠️",
+        "LOW": "❓",
+        "N/A": "❌"
+    }.get(road_confidence, '❓')
+
     confirmation_message = (
-        "📋 Please confirm your submission:\n\n"
-        f"📸 Photo: Received ({context.user_data['photo_size']} bytes)\n"
-        f"📍 Location: {location.latitude:.6f}, {location.longitude:.6f}\n"
-        f"👤 Submitted by: {user.first_name or ''} {user.last_name or ''} (@{user.username or 'N/A'})\n"
-        f"🕐 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        "Is this correct?\n"
-        "Type 'yes' to submit or 'no' to cancel."
+        "📋 **Please confirm your submission:**\n\n"
+        f"📸 Photo: Received ({context.user_data['photo_size']} bytes)\n\n"
+        f"🛣️ **Detected Road Type:**\n"
+        f"{confidence_emoji} {road_type}\n"
+        f"📊 Confidence: {road_confidence}\n"
+        f"📝 {road_details}\n\n"
+        f"📍 **Location:** {location.latitude:.6f}, {location.longitude:.6f}\n\n"
+        f"👤 **Submitted by:** {user.first_name or ''} {user.last_name or ''} (@{user.username or 'N/A'})\n"
+        f"🕐 **Time:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        "✅ Type *yes* to submit\n"
+        "❌ Type *no* to cancel"
     )
 
     await update.message.reply_text(
         confirmation_message,
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=ReplyKeyboardRemove(),
+        parse_mode='Markdown'
     )
 
     logger.info(f"User {user.id} shared location: {location.latitude}, {location.longitude}")
@@ -148,7 +231,11 @@ async def confirm_submission(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 last_name=user.last_name or '',
                 photo_id=context.user_data['photo_id'],
                 latitude=context.user_data['latitude'],
-                longitude=context.user_data['longitude']
+                longitude=context.user_data['longitude'],
+                road_type=context.user_data.get('road_type'),
+                road_confidence=context.user_data.get('road_confidence'),
+                road_details=context.user_data.get('road_details'),
+                road_features=context.user_data.get('road_features')
             )
 
             # Send confirmation with submission ID
