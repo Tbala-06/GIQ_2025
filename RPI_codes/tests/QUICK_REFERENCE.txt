@@ -1,0 +1,103 @@
+╔═══════════════════════════════════════════════════════════════════════╗
+║           PS3 MOTOR CONTROLLER - QUICK REFERENCE CARD                 ║
+╚═══════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ WIRING CONNECTIONS (L298N to Raspberry Pi)                          │
+├─────────────────────────────────────────────────────────────────────┤
+│ LEFT MOTOR:                    RIGHT MOTOR:                         │
+│   ENA  → GPIO 12 (Pin 32)        ENB  → GPIO 13 (Pin 33)           │
+│   IN1  → GPIO 16 (Pin 36)        IN3  → GPIO 19 (Pin 35)           │
+│   IN2  → GPIO 20 (Pin 38)        IN4  → GPIO 26 (Pin 37)           │
+│                                                                      │
+│ POWER:                                                               │
+│   GND  → RPI GND (Pin 6)                                            │
+│   +12V → Battery/Power Supply (+)                                   │
+│   GND  → Battery/Power Supply (-) AND RPI GND                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ PS3 CONTROLLER LAYOUT                                                │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│      L1  L2                                    R1  R2               │
+│                                                                      │
+│    ╔═══╗                                        △                   │
+│    ║ • ║  ← LEFT STICK                      ▢  ○  ← BUTTONS        │
+│    ╚═══╝    (Movement)                         ╳                    │
+│                                                                      │
+│           [SELECT]        [START]                                   │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ BUTTON CONTROLS                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│ Left Stick Y-axis   Forward/Backward (main control)                │
+│ Left Stick X-axis   Left/Right turning                             │
+│                                                                      │
+│ L1                  🐌 SLOW mode (30%)                              │
+│ L2                  🚶 MEDIUM mode (60%) - DEFAULT                  │
+│ R1                  🏃 FAST mode (100%)                             │
+│                                                                      │
+│ Triangle (△)        🛑 EMERGENCY STOP                               │
+│ Cross (✕)           🔄 Reset & Re-center                            │
+│ Circle (○)          🎯 Toggle Precision Mode                        │
+│ Start               👋 Exit Program                                 │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ QUICK START                                                          │
+├─────────────────────────────────────────────────────────────────────┤
+│ 1. Connect all wires according to diagram above                     │
+│ 2. Plug in PS3 controller via USB                                   │
+│ 3. Power on motor power supply (7-12V)                              │
+│ 4. cd ~/GIQ_2025/RPI_codes/tests                                    │
+│ 5. python3 ps3_motor_controller.py                                  │
+│ 6. Press L2 for medium speed (default)                              │
+│ 7. Use left stick to move!                                          │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ DRIVING TIPS                                                         │
+├─────────────────────────────────────────────────────────────────────┤
+│ • START SLOW: Use L1 (slow mode) first                             │
+│ • PRECISION: Press Circle for 50% reduced input                     │
+│ • EMERGENCY: Triangle button always available                       │
+│ • TURNING: Push stick diagonally for smooth turns                   │
+│ • SPINNING: Push left/right while stationary                        │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ TROUBLESHOOTING                                                      │
+├─────────────────────────────────────────────────────────────────────┤
+│ Controller not found:                                                │
+│   → ls /dev/input/js*                                               │
+│   → Check USB connection                                            │
+│                                                                      │
+│ Motors not moving:                                                   │
+│   → Check power supply (7-12V, 2A+)                                 │
+│   → Verify wiring connections                                       │
+│   → Check common ground                                             │
+│   → Remove ENA/ENB jumpers on L298N                                 │
+│                                                                      │
+│ Wrong direction:                                                     │
+│   → Swap motor wires (OUT1↔OUT2 or OUT3↔OUT4)                      │
+│                                                                      │
+│ Joystick drift:                                                      │
+│   → Increase DEAD_ZONE in code (0.15 → 0.20)                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│ SAFETY CHECKLIST                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│ □ All connections secure                                            │
+│ □ Power supply adequate (7-12V, 2A+)                               │
+│ □ Common ground connected                                           │
+│ □ PS3 controller detected                                           │
+│ □ Emergency stop tested (Triangle)                                  │
+│ □ Safe testing area                                                 │
+│ □ Start in SLOW mode                                                │
+└─────────────────────────────────────────────────────────────────────┘
+
+For full documentation, see: PS3_MOTOR_SETUP.md
