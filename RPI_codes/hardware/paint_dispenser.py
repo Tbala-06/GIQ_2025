@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Paint Dispenser Controller
 Controls paint/sand dispensing mechanism via GPIO

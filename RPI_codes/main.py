@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Road Painting Robot Controller - Main Entry Point
 Complete Raspberry Pi controller for autonomous road painting robot.

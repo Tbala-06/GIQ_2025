@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Simple Stencil Alignment System - Yellow Detection Method
 

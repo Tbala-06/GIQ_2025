@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Main Test Script with Telegram Bot Integration
 ===============================================
@@ -12,6 +13,7 @@ Commands:
 Usage:
     python3 maintest.py                # Hardware mode
     python3 maintest.py --simulate     # Simulation mode (no EV3)
+    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
 """
 
 import time

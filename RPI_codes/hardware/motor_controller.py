@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Motor Controller for Robot Movement
 Handles differential drive motor control via GPIO

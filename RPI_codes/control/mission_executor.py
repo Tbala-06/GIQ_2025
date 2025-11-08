@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Mission Executor Module
 Coordinates all subsystems to execute painting missions.

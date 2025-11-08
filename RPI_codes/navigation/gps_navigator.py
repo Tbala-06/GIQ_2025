@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 GPS Navigator Module
 Handles GPS navigation using MTi sensor and motor controller.

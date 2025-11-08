@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Safety Monitor Module
 Monitors robot safety parameters (GPS, battery, tilt, emergency stop).

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Video Recorder with Preview for Raspberry Pi
 Records video with live preview window.

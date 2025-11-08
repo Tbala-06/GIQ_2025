@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Setup Verification Script
 Verifies that the robot controller is properly configured and all dependencies are available.

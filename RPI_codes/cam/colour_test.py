@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Interactive Color Detection Tool
 Helps you find the perfect HSV color ranges for your application

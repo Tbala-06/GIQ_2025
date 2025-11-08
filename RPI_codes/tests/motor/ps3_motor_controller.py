@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 PS3 Controller Motor Test - Raspberry Pi 5 Optimized
 Controls 2 DC motors (front wheel drive) with L298N motor driver using PS3 controller.

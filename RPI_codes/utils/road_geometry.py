@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Road-specific geometry calculations.
 Functions for road alignment, positioning, and painting calculations.

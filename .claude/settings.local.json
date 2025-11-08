@@ -4,7 +4,12 @@
       "Bash(mkdir:*)",
       "Bash(python -m py_compile:*)",
       "Bash(chmod:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(find:*)",
+      "Bash(for file in ./communication/__init__.py ./control/__init__.py ./tools/__init__.py ./utils/__init__.py)",
+      "Bash(do echo \"# -*- coding: utf-8 -*-\")",
+      "Bash(\"$file\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

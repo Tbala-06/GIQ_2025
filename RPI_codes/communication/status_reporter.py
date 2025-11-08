@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Status Reporter Module
 Background thread for periodic status reporting via MQTT.

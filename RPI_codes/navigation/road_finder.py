@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Road Finder Module
 Finds nearest road from GeoJSON data and calculates road bearings.

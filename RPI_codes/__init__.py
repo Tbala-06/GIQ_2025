@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Hardware control modules"""
 
 from .mti_parser import MTiParser, IMUData

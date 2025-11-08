@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Simple Video Recorder for Raspberry Pi
 Records 1 minute of video from the camera.

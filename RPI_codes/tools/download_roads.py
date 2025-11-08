@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 OpenStreetMap Road Downloader
 Downloads road data from OpenStreetMap and saves as GeoJSON.

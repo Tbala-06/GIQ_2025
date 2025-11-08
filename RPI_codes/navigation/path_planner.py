@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Path Planner Module
 Creates waypoints and optimizes routes for navigation.

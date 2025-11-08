@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Simple GPIO Motor Test - Raspberry Pi 5
 Quick test to verify motor connections are working.

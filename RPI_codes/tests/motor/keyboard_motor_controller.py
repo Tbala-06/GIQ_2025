@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Keyboard Motor Controller - Raspberry Pi 5 Optimized
 Control 2 DC motors (front wheel drive) with L298N motor driver using keyboard input.

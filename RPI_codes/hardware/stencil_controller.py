@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Stencil Controller for Servo Positioning
 Adjusts stencil angle based on road orientation

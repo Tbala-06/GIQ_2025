@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 MQTT Client Module
 Handles MQTT communication with bot server for commands and status updates.

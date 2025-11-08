@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Logging utilities for robot controller.
 Provides console and file logging with proper formatting.
