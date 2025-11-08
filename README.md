@@ -41,8 +41,9 @@ GIQ_2025/
 │   │   ├── mission_executor.py   # Mission coordination
 │   │   └── safety_monitor.py     # Safety checks
 │   ├── tests/                     # Testing tools
+│   │   ├── test_gpio_rpi5.py          # Simple GPIO connection test
 │   │   ├── ps3_motor_controller.py    # PS3 controller for manual testing
-│   │   └── test_gpio_rpi5.py          # GPIO testing for RPi 5
+│   │   └── keyboard_motor_controller.py # Keyboard (W/A/S/D) control
 │   └── tools/                     # Utility scripts
 │       ├── test_hardware.py       # Hardware component testing
 │       └── download_roads.py      # Download road data from OpenStreetMap
@@ -139,14 +140,18 @@ pip install -r requirements.txt
 cp .env.example .env
 nano .env  # Configure MQTT, GPS, and GPIO settings
 
-# Test GPIO and motors
-python tests/test_gpio_rpi5.py
+# Step 1: Test GPIO connections (IMPORTANT - do this first!)
+python3 tests/test_gpio_rpi5.py
 
-# Test with PS3 controller (manual control)
-python tests/ps3_motor_controller.py
+# Step 2: Test manual control options
+# Option A: Keyboard control (W/A/S/D keys)
+python3 tests/keyboard_motor_controller.py
 
-# Run robot controller
-python main.py
+# Option B: PS3 controller (for full operation)
+python3 tests/ps3_motor_controller.py
+
+# Step 3: Run full robot controller
+python3 main.py
 ```
 
 See [RPI_codes/README.md](RPI_codes/README.md) for detailed setup.
@@ -275,25 +280,51 @@ Payload: {
 7. Robot applies paint marking
 8. Robot reports completion
 
-### Mode 2: Manual Control (PS3 Controller)
-- **Purpose**: Testing, calibration, manual operation
+### Mode 2: Manual Control Options
+
+#### Option A: Keyboard Control (Simple)
+- **Purpose**: Quick testing, debugging, basic control
 - **Controls**:
-  - Left stick: Forward/backward/turning
+  - **W**: Move forward
+  - **S**: Move backward (reverse)
+  - **A**: Tilt left (slow turn)
+  - **D**: Tilt right (slow turn)
+  - **Q/E**: Increase/decrease speed
+  - **SPACE**: Stop
+  - **ESC**: Exit
+
+```bash
+python3 tests/keyboard_motor_controller.py
+```
+
+See [RPI_codes/tests/KEYBOARD_CONTROLLER_GUIDE.md](RPI_codes/tests/KEYBOARD_CONTROLLER_GUIDE.md) for details.
+
+#### Option B: PS3 Controller (Full Operation)
+- **Purpose**: Full robot operation, precise control
+- **Controls**:
+  - Left stick: Forward/backward/turning (analog)
   - L1: Slow mode (30% speed)
   - L2: Medium mode (60% speed)
   - R1: Fast mode (100% speed)
   - Triangle: Emergency stop
   - Circle: Precision mode
 
+```bash
+python3 tests/ps3_motor_controller.py
+```
+
 See [RPI_codes/tests/PS3_MOTOR_SETUP.md](RPI_codes/tests/PS3_MOTOR_SETUP.md) for full controller guide.
 
 ### Mode 3: Simulation Mode
 ```bash
 # Test robot logic without hardware
-python main.py --simulate
+python3 main.py --simulate
 
 # Test PS3 controller without GPIO
-python tests/ps3_motor_controller.py --simulate
+python3 tests/ps3_motor_controller.py --simulate
+
+# Test keyboard controller without GPIO
+python3 tests/keyboard_motor_controller.py --simulate
 ```
 
 ---
@@ -350,35 +381,55 @@ python tools/download_roads.py \
 
 ## 🧪 Testing
 
-### Test Individual Components
+### Raspberry Pi Robot Testing (Step-by-Step)
 
-**1. Test GPIO (Raspberry Pi 5)**
+**Step 1: Test GPIO Connections (REQUIRED FIRST)**
 ```bash
 cd RPI_codes/tests
-python test_gpio_rpi5.py
+python3 test_gpio_rpi5.py
 ```
+This simple test runs each motor forward and backward to verify wiring is correct. Takes ~8 seconds.
 
-**2. Test Motors with PS3 Controller**
+**Step 2: Test Manual Control**
+
+Option A - Keyboard Control (easier, no controller needed):
 ```bash
 cd RPI_codes/tests
-python ps3_motor_controller.py
+python3 keyboard_motor_controller.py
+# Use W/A/S/D keys to control motors
 ```
 
-**3. Test Telegram Bot**
+Option B - PS3 Controller (full featured):
+```bash
+cd RPI_codes/tests
+python3 ps3_motor_controller.py
+# Connect PS3 controller via USB first
+```
+
+**Step 3: Test Full System**
+```bash
+cd RPI_codes
+python3 main.py --simulate  # Test logic without hardware
+python3 main.py             # Run with actual hardware
+```
+
+### Telegram Bot Testing
+
+**1. Test Telegram Bot**
 ```bash
 cd App_codes/road-painting-bot
 python bot.py
 # Open Telegram and send /report
 ```
 
-**4. Test Web Dashboard**
+**2. Test Web Dashboard**
 ```bash
 cd App_codes/road-painting-bot
 python web_dashboard.py
 # Open http://localhost:5000
 ```
 
-**5. Generate Test Data**
+**3. Generate Test Data**
 ```bash
 cd App_codes/road-painting-bot
 python test_data_generator.py
@@ -434,9 +485,14 @@ python test_data_generator.py
 - [RPI_codes/README.md](RPI_codes/README.md) - Robot controller setup
 
 ### Detailed Guides
+
+**Robot Control:**
+- [RPI_codes/tests/KEYBOARD_CONTROLLER_GUIDE.md](RPI_codes/tests/KEYBOARD_CONTROLLER_GUIDE.md) - Keyboard (W/A/S/D) control guide
 - [RPI_codes/tests/PS3_MOTOR_SETUP.md](RPI_codes/tests/PS3_MOTOR_SETUP.md) - PS3 controller + motor setup
 - [RPI_codes/tests/RPI5_UPDATES.md](RPI_codes/tests/RPI5_UPDATES.md) - Raspberry Pi 5 specific changes
 - [RPI_codes/tests/RPI5_QUICK_START.txt](RPI_codes/tests/RPI5_QUICK_START.txt) - Quick reference for RPi 5
+
+**Backend Application:**
 - [App_codes/road-painting-bot/DOCKER.md](App_codes/road-painting-bot/DOCKER.md) - Docker deployment guide
 - [App_codes/road-painting-bot/PROJECT_SUMMARY.md](App_codes/road-painting-bot/PROJECT_SUMMARY.md) - Bot architecture
 
@@ -491,10 +547,11 @@ lsusb | grep -i sony
 ```
 
 **Motors not moving:**
-1. Check power supply (7-12V, 2A+)
-2. Verify GPIO wiring matches code
-3. Remove ENA/ENB jumpers on L298N
-4. Test with: `python RPI_codes/tests/test_gpio_rpi5.py`
+1. **First, test connections**: `python3 RPI_codes/tests/test_gpio_rpi5.py`
+2. Check power supply (7-12V, 2A+)
+3. Verify GPIO wiring matches pin diagram above
+4. Remove ENA/ENB jumpers on L298N
+5. Check common ground (RPI GND to L298N GND)
 
 **GPS not getting fix:**
 - Ensure clear view of sky
@@ -529,9 +586,13 @@ lsusb | grep -i sony
 
 1. **Dual GPIO Backend** - Supports both RPi 5 (gpiod) and RPi 4/3 (RPi.GPIO) with auto-detection
 2. **GeoJSON Road Alignment** - Uses OpenStreetMap data to find and align with roads
-3. **PS3 Manual Override** - Test and manually control robot with game controller
+3. **Multiple Control Options**:
+   - Keyboard control (W/A/S/D) for quick testing
+   - PS3 controller for full operation
+   - Autonomous GPS navigation
 4. **Integrated Reporting** - Citizens report → Inspector approves → Robot executes
 5. **Real-time MQTT Updates** - Live status tracking from field to control center
+6. **Simple Testing Tools** - Quick GPIO test to verify connections before operation
 
 ---
 
@@ -543,7 +604,9 @@ lsusb | grep -i sony
 | Web Dashboard | ✅ Complete | 100% |
 | Hardware Interfaces | ✅ Complete | 100% |
 | PS3 Controller | ✅ Complete | 100% |
+| Keyboard Controller | ✅ Complete | 100% |
 | RPi 5 GPIO Support | ✅ Complete | 100% |
+| Simple GPIO Test | ✅ Complete | 100% |
 | GeoJSON Processing | ✅ Complete | 100% |
 | MQTT Communication | 🚧 In Progress | 60% |
 | Navigation System | 🚧 In Progress | 50% |
@@ -572,10 +635,15 @@ MIT License - Free to use and modify
 ## 🆘 Support
 
 ### Quick Links
+
+**Getting Started:**
 - Bot Setup: [App_codes/road-painting-bot/README.md](App_codes/road-painting-bot/README.md)
 - Robot Setup: [RPI_codes/README.md](RPI_codes/README.md)
-- PS3 Controller: [RPI_codes/tests/PS3_MOTOR_SETUP.md](RPI_codes/tests/PS3_MOTOR_SETUP.md)
 - RPi 5 Guide: [RPI_codes/tests/RPI5_UPDATES.md](RPI_codes/tests/RPI5_UPDATES.md)
+
+**Robot Control:**
+- Keyboard Control: [RPI_codes/tests/KEYBOARD_CONTROLLER_GUIDE.md](RPI_codes/tests/KEYBOARD_CONTROLLER_GUIDE.md)
+- PS3 Controller: [RPI_codes/tests/PS3_MOTOR_SETUP.md](RPI_codes/tests/PS3_MOTOR_SETUP.md)
 
 ### Getting Help
 1. Check relevant documentation above
