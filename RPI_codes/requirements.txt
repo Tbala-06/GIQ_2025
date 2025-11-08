@@ -1,9 +1,46 @@
-pyserial>=3.5
-paho-mqtt>=1.6.1
-python-dotenv>=1.0.0
-geojson>=3.0.0
-shapely>=2.0.0
-RPi.GPIO>=0.7.1
-gpiozero>=2.0.0
-numpy>=1.24.0
-requests>=2.31.0
+# ============================================================================
+# Road Marking Robot - Requirements
+# ============================================================================
+# For Raspberry Pi 5 with EV3 motor controller
+# Python 3.9+ required
+
+# ----------------------------------------------------------------------------
+# Core Communication
+# ----------------------------------------------------------------------------
+pyserial>=3.5              # Serial communication for GPS/MTI-8
+paho-mqtt>=1.6.1           # MQTT client for bot communication
+python-dotenv>=1.0.0       # Environment configuration
+
+# ----------------------------------------------------------------------------
+# Computer Vision & Camera
+# ----------------------------------------------------------------------------
+opencv-python>=4.8.0       # Camera capture and image processing
+numpy>=1.24.0              # Numerical operations for CV
+
+# ----------------------------------------------------------------------------
+# GPS & Geospatial
+# ----------------------------------------------------------------------------
+geojson>=3.0.0             # GeoJSON parsing for road data
+shapely>=2.0.0             # Geometric operations
+
+# ----------------------------------------------------------------------------
+# GPIO Control (Raspberry Pi 5)
+# ----------------------------------------------------------------------------
+# NOTE: For Raspberry Pi 5, use gpiod (system package)
+# Install with: sudo apt-get install python3-libgpiod
+# RPi.GPIO is for older Pi models only
+gpiod; platform_machine == "aarch64"  # GPIO for RPi 5 (conditional)
+RPi.GPIO>=0.7.1; platform_machine != "aarch64"  # GPIO for RPi 4/3/Zero
+gpiozero>=2.0.0            # High-level GPIO interface
+
+# ----------------------------------------------------------------------------
+# Utilities
+# ----------------------------------------------------------------------------
+requests>=2.31.0           # HTTP requests
+argparse; python_version < "3.2"  # Command-line parsing (builtin in 3.2+)
+
+# ----------------------------------------------------------------------------
+# Optional: For development and testing
+# ----------------------------------------------------------------------------
+# pygame>=2.5.0            # For PS3 controller testing (optional)
+# matplotlib>=3.7.0        # For visualization/debugging (optional)

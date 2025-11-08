@@ -2,7 +2,7 @@
 Simple Stencil Alignment System - Yellow Detection Method
 
 SIMPLE LOGIC:
-- Detect red stencil
+- Detect orange stencil
 - Divide it into 3 zones: LEFT | CENTER | RIGHT
 - Check which zone has YELLOW pixels (road marking)
 - If yellow in LEFT → Move RIGHT
@@ -43,25 +43,22 @@ class SimpleYellowAlignmentDetector:
         self.alignment_tolerance = alignment_tolerance
         self.debug = debug
         
-    def detect_red_stencil(self, image: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
-        """Detect the red stencil frame - returns (x, y, w, h)"""
+    def detect_orange_stencil(self, image: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
+        """Detect the orange stencil frame - returns (x, y, w, h)"""
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        
-        # Red color range
-        lower_red1 = np.array([0, 100, 100])
-        upper_red1 = np.array([10, 255, 255])
-        lower_red2 = np.array([160, 100, 100])
-        upper_red2 = np.array([180, 255, 255])
-        
-        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-        red_mask = cv2.bitwise_or(mask1, mask2)
-        
+
+        # Bright orange color range (calibrated for your stencil)
+        # This matches the bright orange plastic material shown in your image
+        lower_orange = np.array([5, 150, 150])
+        upper_orange = np.array([20, 255, 255])
+
+        orange_mask = cv2.inRange(hsv, lower_orange, upper_orange)
+
         kernel = np.ones((5, 5), np.uint8)
-        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, kernel)
-        red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, kernel)
-        
-        contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        orange_mask = cv2.morphologyEx(orange_mask, cv2.MORPH_CLOSE, kernel)
+        orange_mask = cv2.morphologyEx(orange_mask, cv2.MORPH_OPEN, kernel)
+
+        contours, _ = cv2.findContours(orange_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         if not contours:
             return None
@@ -76,15 +73,15 @@ class SimpleYellowAlignmentDetector:
         Detect which zone contains yellow pixels
         Returns: (zone_name, offset_px, offset_percentage)
         """
-        # IGNORE stencil_bbox - use bottom half of image instead
+        # IGNORE stencil_bbox - use entire image instead
         img_height, img_width = image.shape[:2]
-        
-        # ROI = bottom half of image, full width
+
+        # ROI = entire image, full width and height
         roi_x = 0
-        roi_y = img_height // 2  # Start from middle
+        roi_y = 0  # Start from top
         roi_w = img_width
-        roi_h = img_height // 2  # Bottom half
-        
+        roi_h = img_height  # Full height
+
         roi = image[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w].copy()
         
         # Convert to HSV
@@ -187,15 +184,15 @@ class SimpleYellowAlignmentDetector:
         debug_img = image.copy() if self.debug else None
         
         # Detect stencil
-        stencil_bbox = self.detect_red_stencil(image)
-        
+        stencil_bbox = self.detect_orange_stencil(image)
+
         if stencil_bbox is None:
             return AlignmentResult(
                 zone_detected="NONE",
                 horizontal_offset=0,
                 offset_percentage=0,
                 aligned=False,
-                instruction="ERROR: Cannot detect red stencil",
+                instruction="ERROR: Cannot detect orange stencil",
                 debug_image=debug_img
             )
         
@@ -221,37 +218,37 @@ class SimpleYellowAlignmentDetector:
         # Draw debug visualization
         if self.debug:
             # Draw stencil
-            cv2.rectangle(debug_img, (x, y), (x+w, y+h), (0, 255, 0), 3)
-            cv2.putText(debug_img, "RED STENCIL", (x, y-10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            cv2.rectangle(debug_img, (x, y), (x+w, y+h), (0, 165, 255), 3)
+            cv2.putText(debug_img, "ORANGE STENCIL", (x, y-10),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
 
-            # Draw ACTUAL search area - bottom half of entire frame
+            # Draw ACTUAL search area - entire screen
             search_x = 0
-            search_y = height // 2  # Start from middle of frame
+            search_y = 0  # Start from top of frame
             search_w = width
-            search_h = height // 2  # Bottom half height
+            search_h = height  # Full height
 
             cv2.rectangle(debug_img, (search_x, search_y),
                          (search_x + search_w, search_y + search_h),
                          (255, 0, 255), 3)
-            cv2.putText(debug_img, "SEARCH AREA (BOTTOM HALF)", (search_x + 5, search_y + 25),
+            cv2.putText(debug_img, "SEARCH AREA (FULL SCREEN)", (search_x + 5, 25),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 255), 2)
 
             # Draw zone boundaries (cyan vertical lines) - in the search area
             left_boundary = int(search_x + search_w * 0.33)
             right_boundary = int(search_x + search_w * 0.67)
-            
-            cv2.line(debug_img, (left_boundary, search_y), 
+
+            cv2.line(debug_img, (left_boundary, search_y),
                     (left_boundary, search_y + search_h), (255, 255, 0), 2)
-            cv2.line(debug_img, (right_boundary, search_y), 
+            cv2.line(debug_img, (right_boundary, search_y),
                     (right_boundary, search_y + search_h), (255, 255, 0), 2)
-            
+
             # Label zones
-            cv2.putText(debug_img, "LEFT", (search_x+10, search_y+40), 
+            cv2.putText(debug_img, "LEFT", (search_x+10, 60),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
-            cv2.putText(debug_img, "CENTER", (left_boundary+10, search_y+40), 
+            cv2.putText(debug_img, "CENTER", (left_boundary+10, 60),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
-            cv2.putText(debug_img, "RIGHT", (right_boundary+10, search_y+40), 
+            cv2.putText(debug_img, "RIGHT", (right_boundary+10, 60),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
             
             # Draw center line
@@ -470,7 +467,8 @@ def main():
     print("\n" + "="*70)
     print("SIMPLE YELLOW DETECTION ALIGNMENT SYSTEM")
     print("="*70)
-    print("\nLogic: Detect which zone contains yellow/white pixels")
+    print("\nStencil: ORANGE")
+    print("Logic: Detect which zone contains yellow/white pixels")
     print("  LEFT zone → Move LEFT")
     print("  CENTER zone → ALIGNED ✓")
     print("  RIGHT zone → Move RIGHT")
