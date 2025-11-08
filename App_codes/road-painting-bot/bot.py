@@ -33,6 +33,12 @@ from handlers.inspector_handlers import (
     export_command,
     get_inspector_handlers
 )
+from handlers.robot_handlers import (
+    simulate_command,
+    robotstatus_command,
+    initialize_robot_controller,
+    cleanup_robot_controller
+)
 
 
 # Configure logging
@@ -116,6 +122,14 @@ def main():
         logger.error(f"Database initialization error: {e}")
         sys.exit(1)
 
+    # Initialize robot controller (if available)
+    # Set simulate=True to run without hardware, or specify ev3_ip
+    robot_available = initialize_robot_controller(simulate=False, ev3_ip=None)
+    if robot_available:
+        logger.info("Robot controller initialized and ready")
+    else:
+        logger.warning("Robot controller not available - /simulate command will not work")
+
     # Create application
     application = Application.builder().token(Config.TELEGRAM_BOT_TOKEN).build()
 
@@ -139,6 +153,10 @@ def main():
     # Register inspector callback handlers
     for handler in get_inspector_handlers():
         application.add_handler(handler)
+
+    # Register robot command handlers
+    application.add_handler(CommandHandler("simulate", simulate_command))
+    application.add_handler(CommandHandler("robotstatus", robotstatus_command))
 
     # Register unknown command handler (should be last)
     application.add_handler(MessageHandler(filters.COMMAND, unknown_command))
@@ -172,6 +190,8 @@ def main():
         logger.error(f"Fatal error: {e}", exc_info=True)
         sys.exit(1)
     finally:
+        # Cleanup robot controller
+        cleanup_robot_controller()
         logger.info("Bot stopped")
         logger.info("=" * 60)
 

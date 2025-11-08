@@ -43,6 +43,10 @@ Inspector Commands:
 /pending - View pending submissions
 /history - View recent decisions
 
+Robot Commands:
+/simulate - Test robot motors (forward 30cm, backward 30cm)
+/robotstatus - Check robot controller status
+
 How it works:
 1. Use /report to start a new report
 2. Upload a photo of the damaged road
