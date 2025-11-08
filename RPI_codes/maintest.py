@@ -13,7 +13,6 @@ Commands:
 Usage:
     python3 maintest.py                # Hardware mode
     python3 maintest.py --simulate     # Simulation mode (no EV3)
-    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
 """
 
 import time
@@ -25,7 +24,10 @@ import asyncio
 from typing import Optional
 
 # Add paths for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'App_codes', 'road-painting-bot'))
+sys.path.insert(0, os.path.dirname(__file__))
+
+# Import configuration
+from config import Config
 
 # Import EV3 controller
 from ev3_comm import EV3Controller
@@ -44,17 +46,9 @@ except ImportError:
     print("   Install with: pip install python-telegram-bot")
     TELEGRAM_AVAILABLE = False
 
-# Configuration
-try:
-    # Try to import from bot config
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'App_codes', 'road-painting-bot'))
-    from config import Config
-    TELEGRAM_BOT_TOKEN = Config.TELEGRAM_BOT_TOKEN
-    MQTT_TOPIC_DEPLOY = Config.MQTT_TOPIC_COMMANDS
-except ImportError:
-    # Fallback to environment or default
-    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
-    MQTT_TOPIC_DEPLOY = "bot/commands/deploy"
+# Get configuration
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+MQTT_TOPIC_DEPLOY = Config.MQTT_TOPIC_DEPLOY  # Fixed: Use MQTT_TOPIC_DEPLOY
 
 logger = logging.getLogger(__name__)
 
@@ -65,14 +59,16 @@ class RobotTestController:
     Receives commands via Telegram and controls EV3 motors.
     """
 
-    def __init__(self, simulate=False):
+    def __init__(self, simulate=False, ev3_ip=None):
         """
         Initialize test controller.
 
         Args:
             simulate: If True, simulates EV3 without hardware
+            ev3_ip: EV3 IP address (None for auto-detect)
         """
         self.simulate = simulate
+        self.ev3_ip = ev3_ip
         self.ev3 = None
         self.running = False
         self.telegram_app = None
@@ -81,6 +77,10 @@ class RobotTestController:
         logger.info("ROBOT TEST CONTROLLER - TELEGRAM INTEGRATION")
         logger.info("=" * 70)
         logger.info("Mode: {}".format('SIMULATION' if simulate else 'HARDWARE'))
+        if ev3_ip:
+            logger.info("EV3 IP: {}".format(ev3_ip))
+        else:
+            logger.info("EV3 IP: Auto-detect")
         logger.info("=" * 70)
 
     async def start(self):
@@ -88,17 +88,23 @@ class RobotTestController:
         try:
             # Connect to EV3
             logger.info("→ Connecting to EV3...")
-            self.ev3 = EV3Controller(simulate=self.simulate)
-            if not self.ev3.connect():
-                logger.error("✗ EV3 connection failed")
-                return False
-            logger.info("✓ EV3 connected")
+            self.ev3 = EV3Controller(ev3_ip=self.ev3_ip)
+            
+            if not self.simulate:
+                if not self.ev3.connect():
+                    logger.error("✗ EV3 connection failed")
+                    return False
+                logger.info("✓ EV3 connected at {}".format(self.ev3.ev3_ip))
+            else:
+                logger.info("✓ Simulation mode - no hardware connection")
 
             self.running = True
             return True
 
         except Exception as e:
             logger.error("✗ Startup failed: {}".format(e))
+            import traceback
+            traceback.print_exc()
             return False
 
     async def test_motors(self, update: Update = None, test_name: str = "Manual Test"):
@@ -126,19 +132,21 @@ class RobotTestController:
             if update:
                 await update.message.reply_text("→ Moving forward 30cm...")
 
-            result = self.ev3.move_forward(30, speed=40)
-            if result:
-                left_enc, right_enc = result
-                logger.info("   ✓ Forward complete")
-                logger.info("     Encoders: Left={}, Right={}".format(left_enc, right_enc))
+            if self.simulate:
+                logger.info("   ✓ [SIMULATED] Forward complete")
                 if update:
-                    await update.message.reply_text(
-                        "✓ Forward complete\nEncoders: L={}, R={}".format(left_enc, right_enc)
-                    )
+                    await update.message.reply_text("✓ [SIMULATED] Forward complete")
             else:
-                logger.error("   ✗ Forward failed")
-                if update:
-                    await update.message.reply_text("✗ Forward movement failed")
+                result = self.ev3.move_forward(30)
+                logger.info("   Response: {}".format(result))
+                if "DONE" in str(result):
+                    logger.info("   ✓ Forward complete")
+                    if update:
+                        await update.message.reply_text("✓ Forward complete")
+                else:
+                    logger.error("   ✗ Forward failed: {}".format(result))
+                    if update:
+                        await update.message.reply_text("✗ Forward failed: {}".format(result))
 
             # Wait
             logger.info("\n   Waiting 2 seconds...")
@@ -149,19 +157,21 @@ class RobotTestController:
             if update:
                 await update.message.reply_text("→ Moving backward 30cm...")
 
-            result = self.ev3.move_backward(30, speed=40)
-            if result:
-                left_enc, right_enc = result
-                logger.info("   ✓ Backward complete")
-                logger.info("     Encoders: Left={}, Right={}".format(left_enc, right_enc))
+            if self.simulate:
+                logger.info("   ✓ [SIMULATED] Backward complete")
                 if update:
-                    await update.message.reply_text(
-                        "✓ Backward complete\nEncoders: L={}, R={}".format(left_enc, right_enc)
-                    )
+                    await update.message.reply_text("✓ [SIMULATED] Backward complete")
             else:
-                logger.error("   ✗ Backward failed")
-                if update:
-                    await update.message.reply_text("✗ Backward movement failed")
+                result = self.ev3.move_backward(30)
+                logger.info("   Response: {}".format(result))
+                if "DONE" in str(result):
+                    logger.info("   ✓ Backward complete")
+                    if update:
+                        await update.message.reply_text("✓ Backward complete")
+                else:
+                    logger.error("   ✗ Backward failed: {}".format(result))
+                    if update:
+                        await update.message.reply_text("✗ Backward failed: {}".format(result))
 
             # Wait
             logger.info("\n   Waiting 2 seconds...")
@@ -169,7 +179,8 @@ class RobotTestController:
 
             # Test 3: Stop
             logger.info("\n→ Test 3: Stopping motors...")
-            self.ev3.stop()
+            if not self.simulate:
+                self.ev3.stop()
             logger.info("   ✓ Motors stopped")
 
             logger.info("\n" + "-" * 70)
@@ -185,9 +196,11 @@ class RobotTestController:
 
         except Exception as e:
             logger.error("\n✗ Motor test error: {}".format(e))
+            import traceback
+            traceback.print_exc()
             if update:
                 await update.message.reply_text(
-                    "✗ Motor test error: {}".format(e)
+                    "✗ Motor test error: {}".format(str(e))
                 )
 
     async def handle_deploy_command(self, job_id, latitude, longitude, update: Update = None):
@@ -236,11 +249,17 @@ class RobotTestController:
         self.running = False
 
         # Stop EV3
-        if self.ev3:
+        if self.ev3 and not self.simulate:
             logger.info("  Stopping motors...")
-            self.ev3.stop()
+            try:
+                self.ev3.stop()
+            except:
+                pass
             logger.info("  Disconnecting EV3...")
-            self.ev3.disconnect()
+            try:
+                self.ev3.close()
+            except:
+                pass
 
         logger.info("✓ Shutdown complete")
 
@@ -332,27 +351,27 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Get encoder positions
-    if controller.ev3:
+    # Get status
+    if controller.ev3 and not controller.simulate:
         try:
-            left, right = controller.ev3.get_encoder_positions()
             status_text = (
                 "✅ *Robot Status: ONLINE*\n\n"
                 "🤖 *EV3 Controller:* Connected\n"
-                "📊 *Encoders:*\n"
-                "• Left: `{}`\n"
-                "• Right: `{}`\n\n"
-                "Mode: {}".format(
-                    left, right,
-                    'Simulation' if controller.simulate else 'Hardware'
-                )
+                "📡 *EV3 IP:* `{}`\n\n"
+                "Mode: Hardware".format(controller.ev3.ev3_ip)
             )
         except:
             status_text = (
                 "⚠️ *Robot Status: CONNECTED*\n\n"
-                "EV3 connected but cannot read encoders.\n\n"
-                "Mode: {}".format('Simulation' if controller.simulate else 'Hardware')
+                "EV3 connected but status unavailable.\n\n"
+                "Mode: Hardware"
             )
+    elif controller.simulate:
+        status_text = (
+            "✅ *Robot Status: SIMULATION*\n\n"
+            "Running in simulation mode.\n"
+            "No hardware connected."
+        )
     else:
         status_text = "❌ *Robot Status: EV3 DISCONNECTED*"
 
@@ -363,23 +382,28 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MAIN
 # ============================================================================
 
-async def main_async(simulate: bool, token: str):
+async def main_async(simulate: bool, ev3_ip: str, token: str):
     """Async main function"""
     global controller
 
+    # Print configuration
+    Config.print_config()
+
     # Initialize controller
-    controller = RobotTestController(simulate=simulate)
+    controller = RobotTestController(simulate=simulate, ev3_ip=ev3_ip)
     if not await controller.start():
         logger.error("Failed to start controller")
         return
 
     if not TELEGRAM_AVAILABLE:
         logger.error("python-telegram-bot not installed - cannot start")
+        logger.error("Install with: pip install python-telegram-bot")
         controller.stop()
         return
 
     if not token:
-        logger.error("TELEGRAM_BOT_TOKEN not set in environment or config")
+        logger.error("TELEGRAM_BOT_TOKEN not set!")
+        logger.error("Set it in environment: export TELEGRAM_BOT_TOKEN='your_token'")
         controller.stop()
         return
 
@@ -427,9 +451,12 @@ async def main_async(simulate: bool, token: str):
     finally:
         # Cleanup
         logger.info("Stopping bot...")
-        await application.updater.stop()
-        await application.stop()
-        await application.shutdown()
+        try:
+            await application.updater.stop()
+            await application.stop()
+            await application.shutdown()
+        except:
+            pass
         controller.stop()
 
 
@@ -438,6 +465,8 @@ def main():
     parser = argparse.ArgumentParser(description='Robot Test with Telegram Integration')
     parser.add_argument('--simulate', action='store_true',
                        help='Run in simulation mode (no EV3 hardware)')
+    parser.add_argument('--ev3-ip', type=str, default=None,
+                       help='EV3 IP address (e.g., 169.254.14.120)')
     parser.add_argument('--token', type=str, default=TELEGRAM_BOT_TOKEN,
                        help='Telegram bot token (or set TELEGRAM_BOT_TOKEN env var)')
     args = parser.parse_args()
@@ -445,12 +474,12 @@ def main():
     # Setup logging
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format='%(asctime)s - %(levelname)s - %(message)s'
     )
 
     # Run async main
     try:
-        asyncio.run(main_async(args.simulate, args.token))
+        asyncio.run(main_async(args.simulate, args.ev3_ip, args.token))
     except KeyboardInterrupt:
         print("\n\nShutdown complete")
 
