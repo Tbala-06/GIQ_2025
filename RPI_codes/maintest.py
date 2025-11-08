@@ -48,7 +48,6 @@ except ImportError:
 
 # Get configuration
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
-MQTT_TOPIC_DEPLOY = Config.MQTT_TOPIC_DEPLOY  # Fixed: Use MQTT_TOPIC_DEPLOY
 
 logger = logging.getLogger(__name__)
 
