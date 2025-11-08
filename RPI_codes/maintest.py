@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Main Test Script
-================
+Main Test Script with Telegram Bot Integration
+===============================================
 
-Simple test script that:
-1. Connects to MQTT broker
-2. Listens for deploy commands
-3. Displays received lat/long
-4. Tests EV3 motor movements (forward and backward)
+Integrates with Telegram bot to receive commands and test EV3 motors.
+
+Commands:
+- /simulation - Run motor test sequence (forward 30cm, backward 30cm)
+- Deploy commands from bot - Display coordinates and test motors
 
 Usage:
-    python3 maintest.py
-    python3 maintest.py --simulate  # Test without hardware
+    python3 maintest.py                # Hardware mode
+    python3 maintest.py --simulate     # Simulation mode (no EV3)
 """
 
 import time
@@ -19,344 +19,438 @@ import logging
 import argparse
 import sys
 import os
+import asyncio
+from typing import Optional
 
-# Add communication directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'communication'))
-
-# Import MQTT client
-try:
-    from communication.mqtt_client import MQTTClient
-    MQTT_AVAILABLE = True
-except ImportError:
-    print("⚠️  Warning: MQTT client not found, using simple MQTT")
-    MQTT_AVAILABLE = False
-    import paho.mqtt.client as mqtt
-    import json
+# Add paths for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'App_codes', 'road-painting-bot'))
 
 # Import EV3 controller
 from ev3_comm import EV3Controller
 
+# Import Telegram bot components
+try:
+    from telegram import Update
+    from telegram.ext import (
+        Application,
+        CommandHandler,
+        ContextTypes
+    )
+    TELEGRAM_AVAILABLE = True
+except ImportError:
+    print("⚠️  Warning: python-telegram-bot not installed")
+    print("   Install with: pip install python-telegram-bot")
+    TELEGRAM_AVAILABLE = False
+
 # Configuration
-MQTT_BROKER = "broker.hivemq.com"
-MQTT_TOPIC_DEPLOY = "giq/robot/deploy"
-MQTT_TOPIC_STATUS = "giq/robot/status"
+try:
+    # Try to import from bot config
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'App_codes', 'road-painting-bot'))
+    from config import Config
+    TELEGRAM_BOT_TOKEN = Config.TELEGRAM_BOT_TOKEN
+    MQTT_TOPIC_DEPLOY = Config.MQTT_TOPIC_COMMANDS
+except ImportError:
+    # Fallback to environment or default
+    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+    MQTT_TOPIC_DEPLOY = "bot/commands/deploy"
 
 logger = logging.getLogger(__name__)
 
 
-class SimpleRobotTest:
+class RobotTestController:
     """
-    Simple robot test that listens for MQTT deploy commands
-    and tests EV3 motor movements.
+    Robot test controller that integrates with Telegram bot.
+    Receives commands via Telegram and controls EV3 motors.
     """
 
     def __init__(self, simulate=False):
         """
-        Initialize test.
+        Initialize test controller.
 
         Args:
             simulate: If True, simulates EV3 without hardware
         """
         self.simulate = simulate
-        self.running = False
         self.ev3 = None
-        self.mqtt_client = None
-        self.received_deploy = False
+        self.running = False
+        self.telegram_app = None
 
-        print("\n" + "=" * 70)
-        print("SIMPLE ROBOT TEST")
-        print("=" * 70)
-        print(f"Mode: {'SIMULATION' if simulate else 'HARDWARE'}")
-        print(f"MQTT Broker: {MQTT_BROKER}")
-        print(f"Deploy Topic: {MQTT_TOPIC_DEPLOY}")
-        print("=" * 70 + "\n")
+        logger.info("=" * 70)
+        logger.info("ROBOT TEST CONTROLLER - TELEGRAM INTEGRATION")
+        logger.info("=" * 70)
+        logger.info("Mode: {}".format('SIMULATION' if simulate else 'HARDWARE'))
+        logger.info("=" * 70)
 
-    def start(self):
-        """Start the test"""
+    async def start(self):
+        """Start the controller"""
         try:
             # Connect to EV3
-            print("→ Connecting to EV3...")
+            logger.info("→ Connecting to EV3...")
             self.ev3 = EV3Controller(simulate=self.simulate)
             if not self.ev3.connect():
-                print("✗ EV3 connection failed")
+                logger.error("✗ EV3 connection failed")
                 return False
-            print("✓ EV3 connected\n")
-
-            # Connect to MQTT
-            print("→ Connecting to MQTT...")
-            if not self._connect_mqtt():
-                print("✗ MQTT connection failed")
-                return False
-            print("✓ MQTT connected\n")
-
-            print("=" * 70)
-            print("🎯 READY - Waiting for deploy command...")
-            print(f"   Listening on: {MQTT_TOPIC_DEPLOY}")
-            print("   Press Ctrl+C to exit")
-            print("=" * 70 + "\n")
+            logger.info("✓ EV3 connected")
 
             self.running = True
             return True
 
         except Exception as e:
-            print(f"✗ Startup failed: {e}")
+            logger.error("✗ Startup failed: {}".format(e))
             return False
 
-    def _connect_mqtt(self):
-        """Connect to MQTT broker"""
-        if MQTT_AVAILABLE:
-            # Use existing MQTT client
-            self.mqtt_client = MQTTClient(client_id="robot_test")
-            self.mqtt_client.on_deploy_command(self._on_deploy_received)
-            return self.mqtt_client.connect()
-
-        else:
-            # Use simple MQTT client
-            self.mqtt_client = mqtt.Client(client_id="robot_test")
-            self.mqtt_client.on_connect = self._on_connect
-            self.mqtt_client.on_message = self._on_message
-
-            try:
-                self.mqtt_client.connect(MQTT_BROKER, 1883, 60)
-                self.mqtt_client.loop_start()
-                time.sleep(2)  # Wait for connection
-                return True
-            except Exception as e:
-                print(f"MQTT connection error: {e}")
-                return False
-
-    def _on_connect(self, client, userdata, flags, rc):
-        """MQTT connection callback"""
-        if rc == 0:
-            print(f"  Subscribing to {MQTT_TOPIC_DEPLOY}...")
-            client.subscribe(MQTT_TOPIC_DEPLOY)
-        else:
-            print(f"  Connection failed with code {rc}")
-
-    def _on_message(self, client, userdata, msg):
-        """MQTT message callback"""
-        try:
-            payload = msg.payload.decode('utf-8')
-            data = json.loads(payload)
-            self._on_deploy_received(data)
-        except Exception as e:
-            print(f"Error parsing message: {e}")
-
-    def _on_deploy_received(self, data):
+    async def test_motors(self, update: Update = None, test_name: str = "Manual Test"):
         """
-        Handle deploy command received from MQTT.
+        Test EV3 motor movements.
 
         Args:
-            data: Dictionary with deployment info
+            update: Telegram update (for sending messages)
+            test_name: Name of the test
         """
-        self.received_deploy = True
-
-        print("\n" + "🎯" * 35)
-        print("DEPLOY COMMAND RECEIVED!")
-        print("🎯" * 35)
-
-        # Extract coordinates
-        job_id = data.get('job_id', 'unknown')
-        latitude = data.get('latitude', 0.0)
-        longitude = data.get('longitude', 0.0)
-
-        # Display information
-        print(f"\n📋 Deployment Information:")
-        print(f"   Job ID:    {job_id}")
-        print(f"   Latitude:  {latitude:.6f}")
-        print(f"   Longitude: {longitude:.6f}")
-        print("\n" + "=" * 70)
-
-        # Test EV3 motors
-        print("\n🤖 Testing EV3 Motors...")
-        print("-" * 70)
-        self._test_motors()
-
-        print("\n" + "=" * 70)
-        print("✅ TEST COMPLETE")
-        print("=" * 70)
-        print("\nWaiting for next deploy command...")
-        print("(Press Ctrl+C to exit)\n")
-
-    def _test_motors(self):
-        """Test EV3 motor movements"""
         try:
+            if update:
+                await update.message.reply_text(
+                    "🤖 *Motor Test Starting*\n\n"
+                    "Running motor test sequence...",
+                    parse_mode='Markdown'
+                )
+
+            logger.info("")
+            logger.info("🤖 Testing EV3 Motors - {}".format(test_name))
+            logger.info("-" * 70)
+
             # Test 1: Move forward
-            print("\n→ Test 1: Moving FORWARD 30cm...")
+            logger.info("\n→ Test 1: Moving FORWARD 30cm...")
+            if update:
+                await update.message.reply_text("→ Moving forward 30cm...")
+
             result = self.ev3.move_forward(30, speed=40)
             if result:
                 left_enc, right_enc = result
-                print(f"   ✓ Forward complete")
-                print(f"     Encoders: Left={left_enc}, Right={right_enc}")
+                logger.info("   ✓ Forward complete")
+                logger.info("     Encoders: Left={}, Right={}".format(left_enc, right_enc))
+                if update:
+                    await update.message.reply_text(
+                        "✓ Forward complete\nEncoders: L={}, R={}".format(left_enc, right_enc)
+                    )
             else:
-                print(f"   ✗ Forward failed")
+                logger.error("   ✗ Forward failed")
+                if update:
+                    await update.message.reply_text("✗ Forward movement failed")
 
             # Wait
-            print("\n   Waiting 2 seconds...")
-            time.sleep(2)
+            logger.info("\n   Waiting 2 seconds...")
+            await asyncio.sleep(2)
 
             # Test 2: Move backward
-            print("\n→ Test 2: Moving BACKWARD 30cm...")
+            logger.info("\n→ Test 2: Moving BACKWARD 30cm...")
+            if update:
+                await update.message.reply_text("→ Moving backward 30cm...")
+
             result = self.ev3.move_backward(30, speed=40)
             if result:
                 left_enc, right_enc = result
-                print(f"   ✓ Backward complete")
-                print(f"     Encoders: Left={left_enc}, Right={right_enc}")
+                logger.info("   ✓ Backward complete")
+                logger.info("     Encoders: Left={}, Right={}".format(left_enc, right_enc))
+                if update:
+                    await update.message.reply_text(
+                        "✓ Backward complete\nEncoders: L={}, R={}".format(left_enc, right_enc)
+                    )
             else:
-                print(f"   ✗ Backward failed")
+                logger.error("   ✗ Backward failed")
+                if update:
+                    await update.message.reply_text("✗ Backward movement failed")
 
             # Wait
-            print("\n   Waiting 2 seconds...")
-            time.sleep(2)
+            logger.info("\n   Waiting 2 seconds...")
+            await asyncio.sleep(2)
 
             # Test 3: Stop
-            print("\n→ Test 3: Stopping motors...")
+            logger.info("\n→ Test 3: Stopping motors...")
             self.ev3.stop()
-            print(f"   ✓ Motors stopped")
+            logger.info("   ✓ Motors stopped")
 
-            print("\n" + "-" * 70)
-            print("✅ Motor test sequence complete!")
-            print("-" * 70)
+            logger.info("\n" + "-" * 70)
+            logger.info("✅ Motor test sequence complete!")
+            logger.info("-" * 70)
+
+            if update:
+                await update.message.reply_text(
+                    "✅ *Motor Test Complete!*\n\n"
+                    "All movements executed successfully.",
+                    parse_mode='Markdown'
+                )
 
         except Exception as e:
-            print(f"\n✗ Motor test error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("\n✗ Motor test error: {}".format(e))
+            if update:
+                await update.message.reply_text(
+                    "✗ Motor test error: {}".format(e)
+                )
 
-    def run(self):
-        """Main run loop"""
-        if not self.start():
-            return
+    async def handle_deploy_command(self, job_id, latitude, longitude, update: Update = None):
+        """
+        Handle deploy command with coordinates.
 
-        try:
-            # Keep running until interrupted
-            while self.running:
-                time.sleep(0.5)
+        Args:
+            job_id: Job identifier
+            latitude: Target latitude
+            longitude: Target longitude
+            update: Telegram update (for sending messages)
+        """
+        logger.info("\n" + "🎯" * 35)
+        logger.info("DEPLOY COMMAND RECEIVED!")
+        logger.info("🎯" * 35)
 
-        except KeyboardInterrupt:
-            print("\n\n⚠️  Interrupted by user")
+        logger.info("\n📋 Deployment Information:")
+        logger.info("   Job ID:    {}".format(job_id))
+        logger.info("   Latitude:  {:.6f}".format(latitude))
+        logger.info("   Longitude: {:.6f}".format(longitude))
+        logger.info("\n" + "=" * 70)
 
-        finally:
-            self.stop()
+        # Send Telegram response
+        if update:
+            await update.message.reply_text(
+                "🎯 *Deploy Command Received*\n\n"
+                "📋 *Deployment Info:*\n"
+                "• Job ID: `{}`\n"
+                "• Latitude: `{:.6f}`\n"
+                "• Longitude: `{:.6f}`\n\n"
+                "Starting motor test...".format(job_id, latitude, longitude),
+                parse_mode='Markdown'
+            )
+
+        # Test motors
+        await self.test_motors(update, "Deploy Test - Job {}".format(job_id))
+
+        logger.info("\n" + "=" * 70)
+        logger.info("✅ DEPLOY TEST COMPLETE")
+        logger.info("=" * 70)
 
     def stop(self):
         """Stop and cleanup"""
-        print("\n→ Shutting down...")
+        logger.info("\n→ Shutting down...")
 
         self.running = False
 
         # Stop EV3
         if self.ev3:
-            print("  Stopping motors...")
+            logger.info("  Stopping motors...")
             self.ev3.stop()
-            print("  Disconnecting EV3...")
+            logger.info("  Disconnecting EV3...")
             self.ev3.disconnect()
 
-        # Disconnect MQTT
-        if self.mqtt_client:
-            print("  Disconnecting MQTT...")
-            if MQTT_AVAILABLE:
-                self.mqtt_client.disconnect()
-            else:
-                self.mqtt_client.loop_stop()
-                self.mqtt_client.disconnect()
-
-        print("✓ Shutdown complete\n")
+        logger.info("✓ Shutdown complete")
 
 
 # ============================================================================
-# MQTT TEST PUBLISHER (FOR TESTING)
+# TELEGRAM BOT HANDLERS
 # ============================================================================
 
-def test_publish_deploy(lat=1.3521, lon=103.8198, job_id=1):
+# Global controller instance
+controller: Optional[RobotTestController] = None
+
+
+async def simulation_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Publish a test deploy command to MQTT.
-    Use this to test the system without the Telegram bot.
-
-    Args:
-        lat: Latitude
-        lon: Longitude
-        job_id: Job identifier
+    Handle /simulation command - runs motor test sequence.
     """
-    import paho.mqtt.client as mqtt
-    import json
+    global controller
 
-    print("\n" + "=" * 70)
-    print("PUBLISHING TEST DEPLOY COMMAND")
-    print("=" * 70)
+    logger.info("Received /simulation command from user {}".format(update.effective_user.id))
 
-    client = mqtt.Client(client_id="test_publisher")
+    if not controller or not controller.running:
+        await update.message.reply_text(
+            "❌ Robot controller not initialized.\n"
+            "Please start maintest.py first."
+        )
+        return
+
+    await update.message.reply_text(
+        "🚀 *Simulation Mode Activated*\n\n"
+        "Running motor test sequence...",
+        parse_mode='Markdown'
+    )
+
+    # Run motor test
+    await controller.test_motors(update, "Telegram Simulation Command")
+
+
+async def deploy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle /deploy command - test deployment with coordinates.
+
+    Usage: /deploy <lat> <lon>
+    """
+    global controller
+
+    if not controller or not controller.running:
+        await update.message.reply_text(
+            "❌ Robot controller not initialized.\n"
+            "Please start maintest.py first."
+        )
+        return
+
+    # Parse arguments
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "❌ Invalid format.\n\n"
+            "Usage: `/deploy <latitude> <longitude>`\n\n"
+            "Example: `/deploy 1.3521 103.8198`",
+            parse_mode='Markdown'
+        )
+        return
 
     try:
-        print(f"→ Connecting to {MQTT_BROKER}...")
-        client.connect(MQTT_BROKER, 1883, 60)
-        client.loop_start()
-        time.sleep(1)
+        lat = float(context.args[0])
+        lon = float(context.args[1])
+        job_id = int(time.time())
 
-        # Create deploy message
-        message = {
-            "job_id": job_id,
-            "latitude": lat,
-            "longitude": lon,
-            "timestamp": time.time()
-        }
+        # Handle deploy
+        await controller.handle_deploy_command(job_id, lat, lon, update)
 
-        payload = json.dumps(message)
+    except ValueError:
+        await update.message.reply_text(
+            "❌ Invalid coordinates.\n"
+            "Please provide valid numbers for latitude and longitude."
+        )
 
-        print(f"→ Publishing to {MQTT_TOPIC_DEPLOY}...")
-        print(f"   Message: {payload}")
 
-        result = client.publish(MQTT_TOPIC_DEPLOY, payload, qos=1)
-        result.wait_for_publish()
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle /robotstatus command - show robot status.
+    """
+    global controller
 
-        print("✓ Deploy command published!")
-        print("\nThe robot should receive this command shortly.")
-        print("=" * 70 + "\n")
+    if not controller or not controller.running:
+        await update.message.reply_text(
+            "❌ *Robot Status: OFFLINE*\n\n"
+            "Controller is not running.",
+            parse_mode='Markdown'
+        )
+        return
 
-        client.loop_stop()
-        client.disconnect()
+    # Get encoder positions
+    if controller.ev3:
+        try:
+            left, right = controller.ev3.get_encoder_positions()
+            status_text = (
+                "✅ *Robot Status: ONLINE*\n\n"
+                "🤖 *EV3 Controller:* Connected\n"
+                "📊 *Encoders:*\n"
+                "• Left: `{}`\n"
+                "• Right: `{}`\n\n"
+                "Mode: {}".format(
+                    left, right,
+                    'Simulation' if controller.simulate else 'Hardware'
+                )
+            )
+        except:
+            status_text = (
+                "⚠️ *Robot Status: CONNECTED*\n\n"
+                "EV3 connected but cannot read encoders.\n\n"
+                "Mode: {}".format('Simulation' if controller.simulate else 'Hardware')
+            )
+    else:
+        status_text = "❌ *Robot Status: EV3 DISCONNECTED*"
 
-    except Exception as e:
-        print(f"✗ Publish failed: {e}")
+    await update.message.reply_text(status_text, parse_mode='Markdown')
 
 
 # ============================================================================
 # MAIN
 # ============================================================================
 
+async def main_async(simulate: bool, token: str):
+    """Async main function"""
+    global controller
+
+    # Initialize controller
+    controller = RobotTestController(simulate=simulate)
+    if not await controller.start():
+        logger.error("Failed to start controller")
+        return
+
+    if not TELEGRAM_AVAILABLE:
+        logger.error("python-telegram-bot not installed - cannot start")
+        controller.stop()
+        return
+
+    if not token:
+        logger.error("TELEGRAM_BOT_TOKEN not set in environment or config")
+        controller.stop()
+        return
+
+    # Create Telegram application
+    logger.info("→ Starting Telegram bot...")
+    application = Application.builder().token(token).build()
+
+    # Register handlers
+    application.add_handler(CommandHandler("simulation", simulation_command))
+    application.add_handler(CommandHandler("deploy", deploy_command))
+    application.add_handler(CommandHandler("robotstatus", status_command))
+
+    logger.info("✓ Telegram bot handlers registered")
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info("🎯 READY - Bot is running!")
+    logger.info("=" * 70)
+    logger.info("Available commands:")
+    logger.info("  /simulation - Run motor test sequence")
+    logger.info("  /deploy <lat> <lon> - Test deployment with coordinates")
+    logger.info("  /robotstatus - Show robot status")
+    logger.info("")
+    logger.info("Press Ctrl+C to stop")
+    logger.info("=" * 70)
+
+    try:
+        # Run the bot
+        await application.initialize()
+        await application.start()
+        await application.updater.start_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True
+        )
+
+        # Keep running until interrupted
+        while controller.running:
+            await asyncio.sleep(1)
+
+    except KeyboardInterrupt:
+        logger.info("\n\n⚠️  Interrupted by user")
+    except Exception as e:
+        logger.error("Fatal error: {}".format(e))
+        import traceback
+        traceback.print_exc()
+    finally:
+        # Cleanup
+        logger.info("Stopping bot...")
+        await application.updater.stop()
+        await application.stop()
+        await application.shutdown()
+        controller.stop()
+
+
 def main():
     """Main entry point"""
-    parser = argparse.ArgumentParser(description='Simple Robot Test')
+    parser = argparse.ArgumentParser(description='Robot Test with Telegram Integration')
     parser.add_argument('--simulate', action='store_true',
-                       help='Run in simulation mode (no hardware)')
-    parser.add_argument('--publish-test', action='store_true',
-                       help='Publish a test deploy command and exit')
-    parser.add_argument('--lat', type=float, default=1.3521,
-                       help='Test latitude (default: 1.3521)')
-    parser.add_argument('--lon', type=float, default=103.8198,
-                       help='Test longitude (default: 103.8198)')
+                       help='Run in simulation mode (no EV3 hardware)')
+    parser.add_argument('--token', type=str, default=TELEGRAM_BOT_TOKEN,
+                       help='Telegram bot token (or set TELEGRAM_BOT_TOKEN env var)')
     args = parser.parse_args()
 
     # Setup logging
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    # If publish test mode, just send a test message
-    if args.publish_test:
-        test_publish_deploy(args.lat, args.lon)
-        return
-
-    # Run the test
+    # Run async main
     try:
-        test = SimpleRobotTest(simulate=args.simulate)
-        test.run()
-
-    except Exception as e:
-        print(f"\n✗ Fatal error: {e}")
-        import traceback
-        traceback.print_exc()
+        asyncio.run(main_async(args.simulate, args.token))
+    except KeyboardInterrupt:
+        print("\n\nShutdown complete")
 
 
 if __name__ == "__main__":
