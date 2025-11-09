@@ -21,7 +21,7 @@ import os
 # Priority: 1. Environment variable EV3_IP_ADDRESS
 #           2. This config value
 #           3. Auto-detection on usb0 interface (169.254.x.x subnet)
-EV3_IP_ADDRESS = os.getenv('EV3_IP_ADDRESS', '169.254.47.159')  # ← CHANGE IP HERE when it changes
+EV3_IP_ADDRESS = os.getenv('EV3_IP_ADDRESS', '169.254.254.231')  # ← CHANGE IP HERE when it changes
 EV3_SSH_USERNAME = 'robot'  # Default ev3dev username
 EV3_USB_INTERFACE = 'usb0'  # USB network interface name
 
