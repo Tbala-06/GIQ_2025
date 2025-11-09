@@ -54,10 +54,13 @@ except ImportError:
 # CONFIGURATION (match ev3_config.py on RPi)
 # ============================================================================
 
-# Motor ports
+# Motor ports (front wheel drive)
 LEFT_MOTOR_PORT = ev3.OUTPUT_A
 RIGHT_MOTOR_PORT = ev3.OUTPUT_B
 PAINT_ARM_PORT = ev3.OUTPUT_C
+
+# Motor polarity (motors are upside down, so invert direction)
+MOTOR_POLARITY_INVERTED = True
 
 # Physical parameters
 WHEEL_CIRCUMFERENCE = 17.5  # cm
@@ -95,7 +98,7 @@ class EV3MotorController:
         self.ready = False
 
         try:
-            # Initialize drive motors (Large Motors)
+            # Initialize drive motors (Large Motors - front wheel drive)
             self.left_motor = ev3.LargeMotor(LEFT_MOTOR_PORT)
             self.right_motor = ev3.LargeMotor(RIGHT_MOTOR_PORT)
 
@@ -109,6 +112,11 @@ class EV3MotorController:
                 raise Exception("Right motor (Port B) not connected")
             if not self.paint_arm.connected:
                 raise Exception("Paint arm motor (Port C) not connected")
+
+            # Set motor polarity (invert if motors are upside down)
+            if MOTOR_POLARITY_INVERTED:
+                self.left_motor.polarity = 'inversed'
+                self.right_motor.polarity = 'inversed'
 
             # Reset encoder positions
             self.left_motor.position = 0

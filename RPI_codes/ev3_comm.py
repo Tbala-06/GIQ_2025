@@ -62,16 +62,25 @@ class EV3Controller:
         Initialize EV3 controller.
 
         Args:
-            ev3_ip: EV3 IP address. If None, will auto-detect.
+            ev3_ip: EV3 IP address. If None, will check config then auto-detect.
             simulate: If True, simulates EV3 responses without hardware
         """
-        self.ev3_ip = ev3_ip
+        # Priority: 1. Function argument, 2. Config/env variable, 3. Auto-detect
+        if ev3_ip is not None:
+            self.ev3_ip = ev3_ip
+        else:
+            try:
+                from ev3_config import EV3_IP_ADDRESS
+                self.ev3_ip = EV3_IP_ADDRESS
+            except:
+                self.ev3_ip = None
+
         self.simulate = simulate
         self.connected = False
         self.ssh_process = None
         self.command_lock = Lock()  # Thread-safe command sending
 
-        logger.info(f"EV3Controller initialized (simulate={simulate})")
+        logger.info(f"EV3Controller initialized (simulate={simulate}, ev3_ip={self.ev3_ip or 'auto-detect'})")
 
     def _detect_ev3_ip(self) -> Optional[str]:
         """

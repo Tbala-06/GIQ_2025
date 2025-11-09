@@ -11,6 +11,20 @@ All tunable parameters in one place for easy field calibration.
 - Run calibration_wizard.py to help determine these values
 """
 
+import os
+
+# ============================================================================
+# EV3 CONNECTION CONFIGURATION
+# ============================================================================
+
+# EV3 IP Address
+# Priority: 1. Environment variable EV3_IP_ADDRESS
+#           2. This config value
+#           3. Auto-detection on usb0 interface (169.254.x.x subnet)
+EV3_IP_ADDRESS = os.getenv('EV3_IP_ADDRESS', None)  # Set to fixed IP like '169.254.14.120' or None for auto-detect
+EV3_SSH_USERNAME = 'robot'  # Default ev3dev username
+EV3_USB_INTERFACE = 'usb0'  # USB network interface name
+
 # ============================================================================
 # ROBOT PHYSICAL PARAMETERS
 # ============================================================================
@@ -32,10 +46,12 @@ CM_PER_ENCODER_COUNT = WHEEL_CIRCUMFERENCE / ENCODER_COUNTS_PER_ROTATION  # ~0.0
 # ============================================================================
 
 # Motor ports on EV3
-LEFT_MOTOR_PORT = 'A'  # Large motor - left drive wheel
-RIGHT_MOTOR_PORT = 'B'  # Large motor - right drive wheel
+LEFT_MOTOR_PORT = 'A'  # Large motor - left drive wheel (front wheel drive)
+RIGHT_MOTOR_PORT = 'B'  # Large motor - right drive wheel (front wheel drive)
 PAINT_ARM_PORT = 'C'  # Medium motor - paint/sand dispenser
-STENCIL_PORT = 'D'  # Medium motor - stencil lowering mechanism
+
+# Motor polarity (motors are upside down)
+MOTOR_POLARITY_INVERTED = True  # Set to True if motors run backwards
 
 # Motor speeds (percentage, 0-100)
 DRIVE_SPEED = 50  # Normal driving speed
