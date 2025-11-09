@@ -74,6 +74,7 @@ class Mission:
     target_lon: float
     mission_id: str = "unknown"
     start_time: float = 0.0
+    road_heading: Optional[float] = None  # Road direction in degrees (from GeoJSON)
 
 
 # ============================================================================
@@ -183,11 +184,15 @@ class RoadMarkingRobot:
             logger.warning(f"Cannot deploy mission - robot in state {self.state}")
             return
 
+        # Calculate road heading from GeoJSON
+        road_heading = self._calculate_road_heading(target_lat, target_lon)
+
         self.mission = Mission(
             target_lat=target_lat,
             target_lon=target_lon,
             mission_id=mission_id or f"mission_{int(time.time())}",
-            start_time=time.time()
+            start_time=time.time(),
+            road_heading=road_heading
         )
 
         self.state = RobotState.NAVIGATING
@@ -195,6 +200,8 @@ class RoadMarkingRobot:
 
         logger.info(f"✓ Mission deployed: {self.mission.mission_id}")
         logger.info(f"  Target: ({target_lat:.6f}, {target_lon:.6f})")
+        if road_heading is not None:
+            logger.info(f"  Road heading: {road_heading:.1f}°")
 
     def update(self):
         """
@@ -274,24 +281,83 @@ class RoadMarkingRobot:
             self._transition_to(RobotState.POSITIONING)
             return
 
-        # TODO: Implement actual GPS navigation with heading correction
-        # For now, just simulate approach
-        if self.simulate:
-            logger.info("[SIM] Moving towards target...")
-            time.sleep(2.0)
-            self._transition_to(RobotState.POSITIONING)
-        else:
-            # In real implementation:
-            # 1. Correct heading if needed
-            # 2. Move forward in increments
-            # 3. Check for obstacles
-            # 4. Repeat until within threshold
+        # Get current heading
+        current_heading = self._get_imu_heading()
+        if current_heading is None:
+            logger.warning("No IMU heading - cannot navigate")
             time.sleep(1.0)
+            return
+
+        # Calculate heading error
+        heading_error = self._normalize_angle(bearing - current_heading)
+
+        # 1. Correct heading if needed (>10 degrees off)
+        if abs(heading_error) > HEADING_CORRECTION_THRESHOLD:
+            logger.info(f"Correcting heading: {heading_error:+.1f}° (current={current_heading:.1f}°, target={bearing:.1f}°)")
+
+            try:
+                self.ev3.rotate(heading_error, speed=TURN_SPEED)
+                logger.info("✓ Heading corrected")
+                time.sleep(0.5)
+                return  # Check GPS again after rotation
+            except Exception as e:
+                logger.error(f"Heading correction failed: {e}")
+                time.sleep(1.0)
+                return
+
+        # 2. Move forward in increments
+        # Use smaller steps when close to target
+        if distance > 5.0:
+            move_distance = min(50, distance * 100)  # Up to 50cm, or distance in cm
+        elif distance > 1.0:
+            move_distance = min(20, distance * 100)  # Up to 20cm when close
+        else:
+            move_distance = min(10, distance * 100)  # Up to 10cm when very close
+
+        logger.info(f"Moving forward {move_distance:.0f}cm (distance remaining: {distance:.2f}m)")
+
+        try:
+            self.ev3.move_forward(move_distance, speed=DRIVE_SPEED)
+            logger.info("✓ Movement complete")
+        except Exception as e:
+            logger.error(f"Movement failed: {e}")
+
+        time.sleep(0.5)  # Brief pause before next GPS check
 
     def _state_positioning(self):
-        """POSITIONING state - coarse positioning using GPS"""
+        """POSITIONING state - coarse positioning using GPS and align to road heading"""
+        if not self.mission:
+            self._transition_to_error("No mission defined")
+            return
+
+        # If we have road heading from GeoJSON, align to it
+        if self.mission.road_heading is not None:
+            current_heading = self._get_imu_heading()
+
+            if current_heading is not None:
+                heading_error = self._normalize_angle(self.mission.road_heading - current_heading)
+
+                if abs(heading_error) > ROTATION_TOLERANCE_DEG:
+                    logger.info(f"Aligning to road heading: {heading_error:+.1f}° " +
+                               f"(current={current_heading:.1f}°, road={self.mission.road_heading:.1f}°)")
+
+                    try:
+                        self.ev3.rotate(heading_error, speed=TURN_SPEED)
+                        logger.info("✓ Aligned to road direction")
+                    except Exception as e:
+                        logger.error(f"Road alignment failed: {e}")
+
+                    time.sleep(0.5)
+                    return  # Check heading again
+                else:
+                    logger.info(f"✓ Already aligned to road (error: {heading_error:+.1f}°)")
+            else:
+                logger.warning("No IMU heading for road alignment")
+        else:
+            logger.info("No road heading available - skipping road alignment")
+
+        # Once aligned to road, switch to camera alignment
         logger.info("Coarse positioning complete")
-        # Once GPS says we're close enough, switch to camera alignment
         self._transition_to(RobotState.ALIGNING)
 
     def _state_aligning(self):
@@ -401,6 +467,41 @@ class RoadMarkingRobot:
             logger.warning(f"GPS read error: {e}")
             return None
 
+    def _get_imu_heading(self) -> Optional[float]:
+        """
+        Get current heading from IMU.
+
+        Returns:
+            Heading in degrees (0-360, where 0=North, 90=East) or None
+        """
+        if self.simulate:
+            # Simulate heading (pointing toward target)
+            if self.mission:
+                current_pos = self._get_gps_position()
+                if current_pos:
+                    _, bearing = self._calculate_distance_bearing(
+                        current_pos[0], current_pos[1],
+                        self.mission.target_lat, self.mission.target_lon
+                    )
+                    return bearing
+            return 0.0  # North
+
+        if not self.gps:
+            return None
+
+        try:
+            # Read Euler angles from IMU
+            euler = self.gps.read_euler(timeout=1.0)
+            if euler:
+                roll, pitch, yaw = euler
+                # Convert yaw to heading (0-360 degrees)
+                heading = (yaw + 360) % 360
+                return heading
+            return None
+        except Exception as e:
+            logger.warning(f"IMU read error: {e}")
+            return None
+
     def _calculate_distance_bearing(self, lat1: float, lon1: float,
                                    lat2: float, lon2: float) -> Tuple[float, float]:
         """
@@ -430,6 +531,83 @@ class RoadMarkingRobot:
         bearing = (bearing + 360) % 360  # Normalize to 0-360
 
         return distance, bearing
+
+    def _normalize_angle(self, angle: float) -> float:
+        """
+        Normalize angle to -180 to +180 range.
+
+        Args:
+            angle: Angle in degrees
+
+        Returns:
+            Normalized angle (-180 to +180)
+        """
+        while angle > 180:
+            angle -= 360
+        while angle < -180:
+            angle += 360
+        return angle
+
+    def _calculate_road_heading(self, lat: float, lon: float, search_radius: float = 50.0) -> Optional[float]:
+        """
+        Calculate road heading at target coordinates from GeoJSON data.
+
+        Args:
+            lat, lon: Target GPS coordinates
+            search_radius: Search radius in meters (default 50m)
+
+        Returns:
+            Road heading in degrees (0-360) or None if not found
+        """
+        geojson_path = "data/roads.geojson"
+
+        try:
+            with open(geojson_path, 'r') as f:
+                roads_data = json.load(f)
+
+            nearest_distance = float('inf')
+            nearest_heading = None
+
+            # Search through all road features
+            for feature in roads_data.get('features', []):
+                geometry = feature.get('geometry', {})
+
+                if geometry.get('type') != 'LineString':
+                    continue
+
+                coordinates = geometry.get('coordinates', [])  # [[lon, lat], ...]
+
+                # Check each segment
+                for i in range(len(coordinates) - 1):
+                    seg_lon1, seg_lat1 = coordinates[i]
+                    seg_lon2, seg_lat2 = coordinates[i + 1]
+
+                    # Distance from target to segment midpoint
+                    mid_lat = (seg_lat1 + seg_lat2) / 2.0
+                    mid_lon = (seg_lon1 + seg_lon2) / 2.0
+
+                    distance, _ = self._calculate_distance_bearing(lat, lon, mid_lat, mid_lon)
+
+                    if distance < nearest_distance and distance <= search_radius:
+                        nearest_distance = distance
+                        # Calculate segment heading (from point 1 to point 2)
+                        _, heading = self._calculate_distance_bearing(seg_lat1, seg_lon1, seg_lat2, seg_lon2)
+                        nearest_heading = heading
+
+            if nearest_heading is not None:
+                road_name = "Unknown Road"
+                logger.info(f"Found road within {nearest_distance:.1f}m (heading: {nearest_heading:.1f}°)")
+                return nearest_heading
+            else:
+                logger.warning(f"No road found within {search_radius}m radius")
+                return None
+
+        except FileNotFoundError:
+            logger.warning(f"GeoJSON file not found: {geojson_path}")
+            return None
+        except Exception as e:
+            logger.error(f"Error reading GeoJSON: {e}")
+            return None
 
     def _move_lateral(self, distance_cm: float):
         """

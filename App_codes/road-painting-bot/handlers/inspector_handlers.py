@@ -4,13 +4,21 @@ Handles inspector commands and approval/rejection flow
 """
 
 import logging
+import sys
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
 from database import get_db
 from config import Config
 from datetime import datetime
 
+# Add RPI_codes to path for robot controller
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'RPI_codes'))
+
 logger = logging.getLogger(__name__)
+
+# Global robot controller (initialized in robot_handlers.py)
+from handlers.robot_handlers import robot_controller
 
 
 async def inspector_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -175,6 +183,21 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
                     f"✅ APPROVED by {user.first_name} (@{user.username or 'N/A'})\n"
                     f"🤖 Robot deployment initiated!"
         )
+
+        # Deploy robot to approved location
+        try:
+            if robot_controller:
+                # Deploy robot with GPS coordinates
+                robot_controller.deploy_mission(
+                    target_lat=submission['latitude'],
+                    target_lon=submission['longitude'],
+                    mission_id=f"job_{submission_id}"
+                )
+                logger.info(f"🤖 Robot deployed to ({submission['latitude']:.6f}, {submission['longitude']:.6f})")
+            else:
+                logger.warning("Robot controller not available - deployment skipped")
+        except Exception as e:
+            logger.error(f"Error deploying robot: {e}")
 
         # Notify the original user
         try:
