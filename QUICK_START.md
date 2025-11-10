@@ -15,6 +15,32 @@
 
 ---
 
+## ⚙️ System Architecture
+
+### Motor Control System
+
+**✅ PRIMARY SYSTEM (ACTIVE)**: EV3 via ev3dev
+```
+Raspberry Pi 5 → SSH/USB → EV3 Brick (ev3dev) → Motors
+                            (169.254.47.159)
+                            - Port A: Left Motor
+                            - Port B: Right Motor
+                            - Port C: Paint Arm
+```
+
+**⚠️ BACKUP SYSTEM (NOT ACTIVE)**: L298N GPIO Control
+```
+Raspberry Pi 5 → GPIO Pins → L298N → Motors
+(Used for testing only, NOT in production robot_controller.py)
+```
+
+### Key Configuration Files
+- [ev3_config.py](RPI_codes/ev3_config.py) - EV3 IP address, motor ports, speeds
+- [ev3_comm.py](RPI_codes/ev3_comm.py) - RPI-side EV3 communication
+- [ev3_controller.py](RPI_codes/ev3_controller.py) - Runs ON the EV3 brick
+
+---
+
 ## 🚀 Running the System
 
 ### Option 1: Full System (Telegram Bot + Robot)
@@ -214,9 +240,11 @@ export PYTHONPATH="/path/to/GIQ_2025/RPI_codes:$PYTHONPATH"
 ### "EV3 connection failed"
 
 **Fix**:
-1. Check USB cable connection
-2. Verify EV3 IP: `ping 169.254.254.231`
-3. Update IP in `ev3_config.py` if changed
+1. Check USB cable connection (RPI ↔ EV3)
+2. Verify EV3 IP: `ping 169.254.47.159`
+3. Update IP in [ev3_config.py](RPI_codes/ev3_config.py):24 if changed
+4. Ensure EV3 is running ev3dev OS
+5. Check SSH connection: `ssh robot@169.254.47.159`
 
 ### "No road found"
 
@@ -225,12 +253,20 @@ export PYTHONPATH="/path/to/GIQ_2025/RPI_codes:$PYTHONPATH"
 2. Use `download_roads.py` for your area
 3. Increase search radius in code
 
-### Motors not moving
+### Motors not moving (EV3 System)
 
 **Fix**:
+1. Check EV3 motor connections (Port A, B, C)
+2. Verify motor polarity in [ev3_config.py](RPI_codes/ev3_config.py):156 (MOTOR_POLARITY_INVERTED = True)
+3. Test EV3 motors directly on EV3 brick
+4. Check wheel circumference calibration in [ev3_config.py](RPI_codes/ev3_config.py)
+
+### Motors not moving (Backup L298N System)
+
+**Note**: This system is NOT used in production. If you need to test:
 1. Run `test_gpio_rpi5.py` first
 2. Check motor wiring (GPIO pins 12,13,16,19,20,26)
-3. Verify motor polarity in `ev3_config.py`
+3. Verify L298N power supply
 
 ---
 

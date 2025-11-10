@@ -74,16 +74,18 @@ GIQ_2025/
 │       └── Documentation/                 # Bot documentation
 │
 ├── 📁 RPI_codes/                          # Robot Controller
-│   ├── robot_controller.py                # Main state machine
-│   ├── ev3_comm.py                        # EV3 communication
-│   ├── ev3_controller.py                  # EV3 motor controller
-│   ├── ev3_config.py                      # EV3 configuration
+│   ├── robot_controller.py                # Main state machine (uses EV3)
 │   │
-│   ├── hardware/                          # Hardware interfaces
-│   │   ├── mti_parser.py                  # GPS/IMU sensor
-│   │   ├── motor_controller.py            # L298N motor driver
+│   ├── ✅ EV3 Motor Control (PRIMARY)     # ACTIVE motor control system
+│   ├── ev3_comm.py                        # RPI-side EV3 communication (SSH/USB)
+│   ├── ev3_controller.py                  # Runs ON EV3 brick (ev3dev)
+│   ├── ev3_config.py                      # EV3 configuration (IP, ports, speeds)
+│   │
+│   ├── hardware/                          # Hardware interfaces & sensors
+│   │   ├── mti_parser.py                  # GPS/IMU sensor (MTi-8 RTK)
 │   │   ├── stencil_controller.py          # Servo control
-│   │   └── paint_dispenser.py             # Paint control
+│   │   ├── paint_dispenser.py             # Paint control
+│   │   └── ⚠️ motor_controller.py         # ⚠️ BACKUP: L298N (NOT used in production)
 │   │
 │   ├── navigation/                        # Navigation modules
 │   │   ├── gps_navigator.py               # GPS navigation logic
@@ -147,16 +149,18 @@ GIQ_2025/
 
 ### For Testing
 
+**Note**: test_gpio_rpi5.py, keyboard_motor_controller.py, and ps3_motor_controller.py are for testing the BACKUP L298N system, NOT the production EV3 system.
+
 ```bash
-# 1. Test GPIO connections (8 seconds)
+# Production System Testing (EV3)
+cd App_codes/road-painting-bot
+python bot.py  # Starts bot + robot controller with EV3
+
+# Backup System Testing (L298N - for development only)
 cd RPI_codes/tests/motor
-python test_gpio_rpi5.py
-
-# 2. Test motors with keyboard
-python keyboard_motor_controller.py
-
-# 3. Test full system with PS3 controller
-python ps3_motor_controller.py
+python test_gpio_rpi5.py          # Test GPIO connections (8 seconds)
+python keyboard_motor_controller.py  # Keyboard control (L298N)
+python ps3_motor_controller.py      # PS3 gamepad control (L298N)
 ```
 
 ### For Deployment

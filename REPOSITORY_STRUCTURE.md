@@ -5,6 +5,65 @@ Citizen reporting via Telegram → Inspector approval → Autonomous GPS-guided 
 
 ---
 
+## 🏗️ System Architecture
+
+### ✅ PRIMARY MOTOR CONTROL SYSTEM
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    RASPBERRY PI 5 (RPI_codes/)              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │  robot_controller.py (State Machine)                 │   │
+│  │  - IDLE → NAVIGATING → POSITIONING → ALIGNING        │   │
+│  │  - PAINTING → COMPLETED                              │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                            │                                 │
+│              ┌─────────────┼─────────────┐                  │
+│              │             │             │                   │
+│         GPS/IMU        Camera       ev3_comm.py              │
+│       (MTi-8 RTK)    (USB Webcam)  (SSH/USB)                │
+│       /dev/serial0   Orange+Yellow    Port 22               │
+└──────────────────────────────────────│──────────────────────┘
+                                       │
+                                SSH/USB Connection
+                                       │
+                          ┌────────────▼────────────┐
+                          │   LEGO EV3 BRICK        │
+                          │   (ev3dev OS)           │
+                          │                         │
+                          │  ev3_controller.py      │
+                          │  - Port A: Left Motor   │
+                          │  - Port B: Right Motor  │
+                          │  - Port C: Paint Arm    │
+                          │                         │
+                          │  IP: 169.254.47.159     │
+                          └─────────────────────────┘
+                                       │
+                          ┌────────────┼────────────┐
+                          │            │            │
+                    Left Motor    Right Motor   Paint Motor
+                    (Port A)      (Port B)      (Port C)
+                  Front Wheel   Front Wheel    Stencil Arm
+                  Drive         Drive          Mechanism
+```
+
+### ⚠️ BACKUP SYSTEM (NOT used in production)
+
+```
+┌─────────────────────────────────────────────────┐
+│         RASPBERRY PI 5 (hardware/)              │
+│                                                 │
+│         motor_controller.py                     │
+│         (L298N GPIO control)                    │
+│                                                 │
+│   GPIO 12,13,16,19,20,26 → L298N → Motors      │
+│                                                 │
+│   Status: Exists for testing/backup only       │
+└─────────────────────────────────────────────────┘
+```
+
+---
+
 ## 📁 Top-Level Structure
 
 ```
@@ -132,44 +191,11 @@ COMPLETED
 
 ---
 
-### 2️⃣ Hardware Interface Modules
+### 2️⃣ EV3 Motor Control (✅ PRIMARY/ACTIVE SYSTEM)
 
-**Location**: `hardware/`
+**Architecture**: RPI 5 → SSH/USB → EV3 Brick (ev3dev) → Motors
 
-| Module | GPIO/Port | Function |
-|--------|-----------|----------|
-| **mti_parser.py** | UART `/dev/serial0` | MTi-8 RTK GPS/IMU sensor - reads lat/lon, heading, tilt |
-| **motor_controller.py** | GPIO 12,13,16,19,20,26 | L298N motor driver - PWM speed control, direction |
-| **stencil_controller.py** | GPIO 18 (PWM) | Servo control - rotates stencil to align with road |
-| **paint_dispenser.py** | GPIO 23 | Solenoid/pump - activates paint dispensing |
-
-#### Motor Controller Details
-
-**Supports**: RPi 5 (gpiod) and RPi 4/3 (RPi.GPIO)
-
-```python
-# Pin Configuration
-PWM_LEFT = 12   # Left motor speed
-PWM_RIGHT = 13  # Right motor speed
-DIR_LEFT_FWD = 16
-DIR_LEFT_BACK = 19
-DIR_RIGHT_FWD = 20
-DIR_RIGHT_BACK = 26
-EMERGENCY_STOP = 21  # Input with pull-up
-```
-
-**Methods**:
-- `move_forward(distance_cm, speed_percent)` - Move straight
-- `move_backward(distance_cm, speed_percent)` - Reverse
-- `turn_left(angle_degrees, speed_percent)` - Rotate left
-- `turn_right(angle_degrees, speed_percent)` - Rotate right
-- `stop()` - Emergency stop all motors
-
----
-
-### 3️⃣ EV3 Integration Modules
-
-**Alternative motor control using LEGO EV3 brick**
+**Location**: `RPI_codes/`
 
 | File | Location | Function |
 |------|----------|----------|
@@ -181,14 +207,19 @@ EMERGENCY_STOP = 21  # Input with pull-up
 #### EV3 Configuration
 
 ```python
-EV3_IP_ADDRESS = '169.254.254.231'  # USB network IP
-LEFT_MOTOR_PORT = 'A'   # Port A: Left drive wheel
+# ev3_config.py
+EV3_IP_ADDRESS = '169.254.47.159'  # USB network IP
+LEFT_MOTOR_PORT = 'A'   # Port A: Left drive wheel (front wheel drive)
 RIGHT_MOTOR_PORT = 'B'  # Port B: Right drive wheel
 PAINT_ARM_PORT = 'C'    # Port C: Paint dispenser/arm
 MOTOR_POLARITY_INVERTED = True  # Motors mounted upside down
 
 WHEEL_CIRCUMFERENCE = 17.5  # cm
 WHEELBASE = 20.0  # cm
+
+DRIVE_SPEED = 50          # Normal driving speed (%)
+PRECISION_SPEED = 25      # Slow speed for precise movements
+TURN_SPEED = 40           # Rotation speed
 ```
 
 #### EV3 Communication Protocol
@@ -207,6 +238,45 @@ STOP                   # Emergency stop
 DONE left=1234 right=5678  # Movement complete + encoder positions
 ERROR: Motor stalled       # Error message
 ```
+
+---
+
+### 3️⃣ Hardware Sensors & Peripherals
+
+**Location**: `hardware/`
+
+| Module | GPIO/Port | Function |
+|--------|-----------|----------|
+| **mti_parser.py** | UART `/dev/serial0` | MTi-8 RTK GPS/IMU sensor - reads lat/lon, heading, tilt |
+| **stencil_controller.py** | GPIO 18 (PWM) | Servo control - rotates stencil to align with road |
+| **paint_dispenser.py** | GPIO 23 | Solenoid/pump - activates paint dispensing |
+| ⚠️ **motor_controller.py** | GPIO 12,13,16,19,20,26 | ⚠️ BACKUP SYSTEM: L298N motor driver (NOT used in production) |
+
+#### ⚠️ Alternative Motor Control (BACKUP ONLY)
+
+**Status**: NOT used in production. EV3 system is primary.
+
+**L298N Motor Controller** - Direct GPIO control for testing/backup:
+
+```python
+# Pin Configuration (hardware/ directory)
+PWM_LEFT = 12   # Left motor speed
+PWM_RIGHT = 13  # Right motor speed
+DIR_LEFT_FWD = 16
+DIR_LEFT_BACK = 19
+DIR_RIGHT_FWD = 20
+DIR_RIGHT_BACK = 26
+EMERGENCY_STOP = 21  # Input with pull-up
+```
+
+**Methods**:
+- `move_forward(distance_cm, speed_percent)` - Move straight
+- `move_backward(distance_cm, speed_percent)` - Reverse
+- `turn_left(angle_degrees, speed_percent)` - Rotate left
+- `turn_right(angle_degrees, speed_percent)` - Rotate right
+- `stop()` - Emergency stop all motors
+
+**Note**: This system exists for development/testing but is NOT used in the main robot_controller.py state machine
 
 ---
 
